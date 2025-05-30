@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Define CSS variables that are used by shadcn/ui components but not directly as Tailwind color classes */
+    /* These are already defined in tailwind.config.ts via the plugin, but good to have fallbacks or for direct use */
+    --radius: 0.75rem; /* Example, ensure this matches your design system */
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* h1-h6 will inherit foreground color, font-semibold is fine */
+}
