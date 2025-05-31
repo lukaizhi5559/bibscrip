@@ -3,7 +3,7 @@ import Link from "next/link"
 export function AppFooter() {
   return (
     <footer className="border-t border-border/40 py-8">
-      <div className="w-full text-center text-sm text-muted-foreground px-4 sm:px-6 lg:px-8">
+      <div className="w-full text-center text-sm text-muted-foreground px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <p className="mb-2">Made with ❤️ for seekers of the Word.</p>
         <div className="flex justify-center gap-4 mb-4">
           <Link href="#privacy" className="hover:text-primary transition-colors">

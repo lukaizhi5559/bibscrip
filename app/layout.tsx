@@ -30,21 +30,21 @@ export default async function RootLayout({
       <body>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <SidebarProvider defaultOpen={defaultSidebarOpen}>
-            <div className="flex min-h-screen bg-background w-full">
+            <div className="bg-background w-full h-screen overflow-hidden">
               <AppSidebar />
               <SidebarInset>
                 {" "}
                 {/* This component has flex-1 and adjusts its margin-left */}
-                <div className="flex flex-col min-h-screen w-full">
+                <div className="flex flex-col h-screen w-full">
                   {" "}
                   {/* This div takes full width of SidebarInset */}
                   <AppHeader /> {/* AppHeader uses its own internal 'container' to center its content */}
                   {/* This 'main' element will host the page content. */}
                   {/* It takes available vertical space and full width of its parent. */}
-                  <main className="flex-1 w-full">
+                  <main className="flex-1 w-full overflow-y-auto">
                     {/* This div is the centered container for the page content (children). */}
                     {/* 'h-full' allows children to potentially fill height if needed. */}
-                    <div className="w-full h-full px-4 sm:px-6 lg:px-8">{children}</div>
+                    <div className="w-full h-full mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">{children}</div>
                   </main>
                   <AppFooter /> {/* AppFooter uses its own internal 'container' to center its content */}
                 </div>

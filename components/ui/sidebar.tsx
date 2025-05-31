@@ -218,8 +218,8 @@ export const Sidebar = React.forwardRef<
     <div
       ref={ref}
       className={cn(
-        "group hidden md:flex text-sidebar-foreground flex-col relative transition-[width] duration-200 ease-linear",
-        "bg-sidebar border-r border-sidebar-border",
+        "group hidden md:flex text-sidebar-foreground flex-col fixed top-0 bottom-0 transition-[width] duration-200 ease-linear z-40",
+        "bg-sidebar border-r border-sidebar-border overflow-hidden",
         side === "left" ? "left-0" : "right-0",
         variant === "floating" || variant === "inset" ? "p-2 rounded-lg m-2 shadow-soft-md border" : "",
         state === "expanded"
@@ -360,12 +360,13 @@ export const SidebarSeparator = React.forwardRef<
 SidebarSeparator.displayName = "SidebarSeparator"
 
 export const SidebarContent = React.forwardRef<HTMLDivElement, React.ComponentProps<"div">>(
+
   ({ className, children, ...props }, ref) => {
     return (
       <div
         ref={ref}
         data-sidebar="content"
-        className={cn("flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden p-3", className)}
+        className={cn("flex flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden p-3 max-h-[calc(100vh-8.5rem)]", className)}
         {...props}
       >
         {children}
@@ -588,7 +589,7 @@ export const SidebarInset = React.forwardRef<HTMLDivElement, React.ComponentProp
     return (
       <main
         ref={ref}
-        className={cn("flex-1 transition-[margin-left] duration-200 ease-linear", className)}
+        className={cn("flex-1 transition-[margin-left] duration-200 ease-linear w-full", marginLeftClass, className)}
         {...props}
       />
     )

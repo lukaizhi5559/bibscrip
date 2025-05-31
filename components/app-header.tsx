@@ -8,8 +8,8 @@ export function AppHeader() {
   const { open, isMobile } = useSidebar()
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="w-full flex h-14 items-center px-4 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-30 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="w-full flex h-14 items-center px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         {/* SidebarTrigger for mobile */}
         <SidebarTrigger className="md:hidden mr-2" />
 
@@ -26,7 +26,9 @@ export function AppHeader() {
             <div style={{ width: 'auto', minWidth: isMobile ? 0 : 'var(--sidebar-width-icon)' }} />
           )}
           <div className="flex items-center gap-2 ml-auto">
-            <ThemeToggle />
+            <div className="relative z-50">
+              <ThemeToggle />
+            </div>
           </div>
         </div>
       </div>

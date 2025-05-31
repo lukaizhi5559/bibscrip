@@ -111,7 +111,7 @@ export function AppSidebar() {
 
         <SidebarSeparator className="my-3" />
 
-        <SidebarGroup label={sidebarState === "expanded" ? "History" : undefined}>
+        <SidebarGroup label={sidebarState === "expanded" ? "History" : undefined} className="overflow-y-auto">
           <SidebarMenu>
             {mainMenuItems.map((item) => (
               <SidebarMenuItem key={item.label}>

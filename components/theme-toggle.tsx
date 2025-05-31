@@ -1,26 +1,62 @@
 "use client"
-import { Moon, Sun } from "lucide-react"
+import * as React from "react"
+import { Moon, Sun, Laptop } from "lucide-react"
 import { useTheme } from "next-themes"
 
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
 
 export function ThemeToggle() {
-  const { theme, resolvedTheme, setTheme } = useTheme()
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = React.useState(false)
+  
+  // After mounting, we have access to the theme
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
 
-  // Determine the effective theme for toggling logic
-  // If theme is 'system', resolvedTheme gives the actual current theme (light/dark)
-  const currentTheme = theme === "system" ? resolvedTheme : theme
+  if (!mounted) {
+    return (
+      <Button variant="outline" size="icon" className="border border-yellow-500/50" aria-label="Select theme">
+        <span className="h-5 w-5" />
+        <span className="sr-only">Toggle theme</span>
+      </Button>
+    )
+  }
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={() => setTheme(currentTheme === "dark" ? "light" : "dark")}
-      aria-label="Toggle theme"
-    >
-      <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-      <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-      <span className="sr-only">Toggle theme</span>
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="icon" className="border border-yellow-500/50 hover:bg-accent" aria-label="Select theme">
+          {theme === "light" && <Sun className="h-5 w-5 text-yellow-500" />}
+          {theme === "dark" && <Moon className="h-5 w-5 text-blue-400" />}
+          {theme === "system" && <Laptop className="h-5 w-5 text-green-400" />}
+          <span className="sr-only">Toggle theme</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[150px] p-2">
+        <DropdownMenuLabel>Theme</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => setTheme("light")} className={`my-1 ${theme === "light" ? "bg-accent font-medium" : ""}`}>
+          <Sun className="mr-2 h-4 w-4 text-yellow-500" />
+          <span>Light</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("dark")} className={`my-1 ${theme === "dark" ? "bg-accent font-medium" : ""}`}>
+          <Moon className="mr-2 h-4 w-4 text-blue-400" />
+          <span>Dark</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("system")} className={`my-1 ${theme === "system" ? "bg-accent font-medium" : ""}`}>
+          <Laptop className="mr-2 h-4 w-4 text-green-400" />
+          <span>System</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

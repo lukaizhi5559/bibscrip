@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, type FormEvent, useEffect, useRef } from "react"
+import { useState, type FormEvent, useEffect, useRef, KeyboardEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { ChatResponseCard, type ChatResponseData, type Verse, type Commentary } from "@/components/chat-response-card"
 import { ResultsLayout } from "@/components/results-layout"
 import { AiTypingIndicator } from "@/components/ai-typing-indicator"
@@ -150,28 +151,71 @@ export default function HomePage() {
   }
 
   return (
-    <div className={`flex h-full w-full ${resultsOpen && !isMobile ? 'overflow-hidden' : ''}`}>
+    <div className={`flex w-full h-full ${resultsOpen && !isMobile ? 'overflow-hidden' : ''}`}>
       {/* Main content area - always visible but resized on desktop when results are open */}
       <div className={`flex flex-col h-full overflow-y-auto items-center transition-all duration-300 ease-in-out
         ${resultsOpen && !isMobile ? 'w-1/3 min-w-[350px]' : 'w-full'}`}>
-        <section className="w-full max-w-2xl text-center py-8 md:py-12 px-4">
+        <section className="w-full max-w-2xl mx-auto text-center py-8 md:py-12 px-4">
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">Ask BibScrip Anything</h1>
           <p className="mt-4 text-lg text-muted-foreground">
             Explore the Bible with AI-powered insight, scripture, and study tools.
           </p>
-          <form onSubmit={handleSubmit} className="mt-8 flex flex-col sm:flex-row items-center gap-3">
-            <Input
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              placeholder="What does Romans 8:28 mean?"
-              className="h-12 flex-grow text-base shadow-sm focus-visible:ring-primary focus-visible:ring-offset-2"
-              aria-label="Ask a question about the Bible"
-            />
-            <Button type="submit" size="lg" className="h-12 w-full sm:w-auto shadow-sm" disabled={isLoading}>
-              <SendHorizonal className="mr-2 h-4 w-4 sm:hidden md:inline-block" />
-              Ask
-            </Button>
+          <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-3 max-w-3xl mx-auto">
+            <div className="relative">
+              <Textarea
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={(e: KeyboardEvent<HTMLTextAreaElement>) => {
+                  // Check for Enter key press
+                  if (e.key === 'Enter') {
+                    // For Ctrl+Enter or Shift+Enter, manually insert a line break
+                    if (e.ctrlKey || e.shiftKey) {
+                      // For Ctrl+Enter, we need to manually handle it
+                      if (e.ctrlKey) {
+                        e.preventDefault(); // Prevent default to handle manually
+                        const target = e.target as HTMLTextAreaElement;
+                        const start = target.selectionStart;
+                        const end = target.selectionEnd;
+                        const value = target.value;
+                        
+                        // Insert a newline at cursor position
+                        const newValue = value.substring(0, start) + '\n' + value.substring(end);
+                        
+                        // Update the state
+                        setInputValue(newValue);
+                        
+                        // We need to manually set the cursor position after state update
+                        // Using setTimeout to ensure this runs after React's state update
+                        setTimeout(() => {
+                          target.selectionStart = target.selectionEnd = start + 1;
+                        }, 0);
+                      }
+                      // For Shift+Enter, default browser behavior works fine
+                      return;
+                    } else {
+                      // Plain Enter without modifiers - submit form
+                      e.preventDefault();
+                      handleSubmit(e as unknown as FormEvent<HTMLFormElement>);
+                    }
+                  }
+                }}
+                placeholder="What does Romans 8:28 mean? \nInclude cross-references to other related verses.\nSummarize how a Christian can apply this verse in daily life."
+                className="min-h-[100px] flex-grow text-base shadow-sm focus-visible:ring-0 border-yellow-500/50 focus-visible:border-yellow-500 pr-14 resize-none rounded-xl py-3 px-4"
+                aria-label="Ask a question about the Bible"
+              />
+              <Button 
+                type="submit" 
+                size="icon" 
+                className="absolute right-3 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full bg-yellow-500 hover:bg-yellow-600 shadow-sm flex items-center justify-center" 
+                disabled={isLoading}
+              >
+                <SendHorizonal className="h-4 w-4 text-primary-foreground" />
+                <span className="sr-only">Ask</span>
+              </Button>
+              <div className="text-xs text-muted-foreground mt-1">
+                Use <kbd className="px-1 py-0.5 bg-muted rounded">Shift+Enter</kbd> or <kbd className="px-1 py-0.5 bg-muted rounded">Ctrl+Enter</kbd> for line breaks
+              </div>
+            </div>
           </form>
           <div className="mt-3 flex justify-between items-center">
             <p className="text-xs text-muted-foreground">
@@ -216,7 +260,7 @@ export default function HomePage() {
 
       {/* Results panel - fixed overlay on mobile, side-by-side on desktop */}
       <div 
-        className={`${isMobile ? 'fixed top-0 right-0 z-50' : 'relative'} h-full bg-background border-l border-border overflow-y-auto transition-all duration-300 ease-in-out
+        className={`${isMobile ? 'fixed top-0 right-0 z-50' : 'relative'} ${isMobile ? 'h-full' : 'min-h-screen'} bg-background border-l border-border overflow-y-auto transition-all duration-300 ease-in-out
           ${resultsOpen 
             ? (isMobile ? 'translate-x-0 w-full' : 'w-2/3 translate-x-0') 
             : (isMobile ? 'translate-x-full' : 'w-0 opacity-0 invisible')}`}
