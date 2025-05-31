@@ -33,12 +33,9 @@ export default function VerseResourceTabs({ verse, defaultTab = 'text' }: VerseR
     return book.toLowerCase().replace(/\s+/g, '');
   };
   
-  // For BibleGateway, we need to ensure we're using a URL format that works well with iframes
-  // The key is to use '/bible/' path which seems to work better in embedded contexts
-  const versionCode = verse.translation || 'NIV';
-  // Replace spaces with '/' in the reference for the Bible path format
-  const pathRef = verse.ref.replace(/\s+/g, '/').replace(/:/g, '/');
-  const bibleGatewayUrl = `https://www.biblegateway.com/bible/${versionCode}/${pathRef}`;
+  // Return to the standard passage URL - using the simplest and most reliable format
+  // This is the format that was partially working before
+  const bibleGatewayUrl = `https://www.biblegateway.com/passage/?search=${verse.ref}&version=${verse.translation || 'NIV'}`;
   
   const { book, chapter, verse: verseNum } = parsePassage(verse.ref);
   const bibleHubUrl = verseNum
