@@ -32,17 +32,84 @@ export function ReferenceLinks({
   // Parse the passage to handle the various URL formats
   const formattedPassage = formatPassageForUrl(passage || 'John 3:16');
   
-  // Navigate to the Bible Verses tab and trigger click on the appropriate resource tab
-  const navigateToResource = (resourceType: 'biblegateway' | 'biblehub' | 'blueletterbible') => {
-    // Use the improved navigation helper function
-    navigateToVerseResource(passage, resourceType);
+  // Navigate to the Bible Verses tab without selecting a specific resource
+  const navigateToBibleVerses = () => {
+    console.log(`Navigating to Bible Verses for: ${passage}`);
     
-    // Optional: analytics tracking
-    try {
-      console.log(`Resource selected: ${resourceType}, Passage: ${passage}`);
-    } catch (error) {
-      console.error('Analytics error:', error);
+    // Store only the verse reference in sessionStorage
+    window.sessionStorage.setItem('activeVerseRef', passage);
+    
+    // Try to click the Bible Verses tab directly
+    const tabSelectors = [
+      'button[value="Bible Verses"]',
+      '[data-value="verses"]',
+      '.tabs [value="verses"]',
+      '#bible-verses-tab'
+    ];
+    
+    let tabFound = false;
+    
+    // Try to find the tab by text content first
+    const buttons = document.querySelectorAll('button');
+    buttons.forEach(button => {
+      if ((button.textContent || '').trim().includes('Bible Verses')) {
+        console.log('Found Bible Verses tab by button text');
+        button.click();
+        tabFound = true;
+      }
+    });
+    
+    // If not found by text, try the selectors
+    if (!tabFound) {
+      for (const selector of tabSelectors) {
+        try {
+          const tab = document.querySelector(selector) as HTMLElement;
+          if (tab) {
+            console.log(`Found tab with selector: ${selector}`);
+            tab.click();
+            tabFound = true;
+            break;
+          }
+        } catch (e) {
+          console.error(`Error with selector ${selector}:`, e);
+        }
+      }
     }
+    
+    if (!tabFound) {
+      // As a fallback, set the active main tab
+      setActiveMainTab('verses');
+    }
+    
+    // Try to find and scroll to the verse container
+    setTimeout(() => {
+      try {
+        console.log('Looking for verse container:', passage);
+        // Format ID for direct selection
+        const idSafeRef = passage.trim().toLowerCase().replace(/\s+/g, '-').replace(/:/g, '-');
+        const verseContainerById = document.getElementById(`verse-container-${idSafeRef}`);
+        
+        if (verseContainerById) {
+          console.log(`Found verse container by ID for ${passage}`);
+          verseContainerById.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+        
+        // Fallback to data attribute
+        const verseContainers = document.querySelectorAll('[data-verse-ref]');
+        verseContainers.forEach(container => {
+          const containerRef = container.getAttribute('data-verse-ref');
+          if (containerRef === passage) {
+            container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        });
+      } catch (e) {
+        console.error('Error scrolling to verse container:', e);
+      }
+    }, 300);
+    
+    // Analytics tracking
+    console.log(`Navigated to Bible Verses section for: ${passage}`);
   };
   
   // Function to open external link in new tab
@@ -163,81 +230,27 @@ export function ReferenceLinks({
   
   return (
     <div className="flex flex-wrap gap-2 mt-2">
-      {/* Navigation buttons that open Bible Verses tab with the appropriate resource selected */}
-      {showBibleGateway && (
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="text-xs h-7 px-2 py-1"
-          title="View in BibleGateway"
-          onClick={() => navigateToResource('biblegateway')}
-        >
-          <span className="mr-1">📘</span> BibleGateway
-        </Button>
-      )}
+      {/* Single button to navigate to Bible Verses section */}
+      <Button 
+        variant="outline" 
+        size="sm" 
+        className="text-xs h-7 px-2 py-1"
+        title="View in Bible Verses section"
+        onClick={() => navigateToBibleVerses()}
+      >
+        <span className="mr-1">📖</span> View Bible Verses
+      </Button>
       
-      {showBibleHub && book && chapter && (
-        <Button 
-          variant="outline" 
-          size="sm"
-          className="text-xs h-7 px-2 py-1"
-          title="View in BibleHub"
-          onClick={() => navigateToResource('biblehub')}
-        >
-          <span className="mr-1">🔍</span> BibleHub
-        </Button>
-      )}
-      
-      {showBlueLetterBible && book && chapter && (
-        <Button 
-          variant="outline" 
-          size="sm"
-          className="text-xs h-7 px-2 py-1"
-          title="View in BlueLetterBible"
-          onClick={() => navigateToResource('blueletterbible')}
-        >
-          <span className="mr-1">📖</span> BlueLetterBible
-        </Button>
-      )}
-      
-      {/* External links to open in new tab */}
-      <div className="flex flex-wrap gap-2 mt-2 ml-auto">
-        {showBibleGateway && (
-          <Button 
-            variant="ghost" 
-            size="sm"
-            className="text-xs h-7 px-2 py-1"
-            title="Open in new tab"
-            onClick={() => openExternalLink(bibleGatewayUrl)}
-          >
-            <ExternalLink className="h-3 w-3 mr-1" /> BG
-          </Button>
-        )}
-        
-        {showBibleHub && book && chapter && (
-          <Button 
-            variant="ghost" 
-            size="sm"
-            className="text-xs h-7 px-2 py-1"
-            title="Open in new tab"
-            onClick={() => openExternalLink(bibleHubUrl)}
-          >
-            <ExternalLink className="h-3 w-3 mr-1" /> BH
-          </Button>
-        )}
-        
-        {showBlueLetterBible && book && chapter && (
-          <Button 
-            variant="ghost" 
-            size="sm"
-            className="text-xs h-7 px-2 py-1"
-            title="Open in new tab"
-            onClick={() => openExternalLink(blueLetterBibleUrl)}
-          >
-            <ExternalLink className="h-3 w-3 mr-1" /> BLB
-          </Button>
-        )}
-      </div>
+      {/* External link to Bible Gateway in new tab */}
+      <Button 
+        variant="ghost" 
+        size="sm"
+        className="text-xs h-7 px-2 py-1 ml-auto"
+        title="Open in BibleGateway (new tab)"
+        onClick={() => openExternalLink(bibleGatewayUrl)}
+      >
+        <ExternalLink className="h-3 w-3 mr-1" /> BibleGateway
+      </Button>
       
       {/* Multi-translation comparison button */}
       {safeTranslations.length > 1 && (
@@ -247,7 +260,7 @@ export function ReferenceLinks({
           onClick={() => openExternalLink(
             `https://www.biblegateway.com/passage/?search=${linkParams.search}&version=${safeTranslations.map(t => getTranslationCode(t, 'biblegateway')).join('%2C')}`
           )}
-          className="flex items-center gap-1 text-xs h-7 px-2 py-1 mt-2"
+          className="flex items-center gap-1 text-xs h-7 px-2 py-1"
         >
           <span className="mr-1">📊</span> Compare Translations
           <ExternalLink className="h-3 w-3 ml-1" />

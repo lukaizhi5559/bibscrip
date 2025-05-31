@@ -23,30 +23,85 @@ export function navigateToVerseResource(
     '[data-value="verses"]',
     '[value="verses"]',
     '[role="tab"][data-state][value="verses"]',
-    '[role="tab"][value="verses"]'
+    '[role="tab"][value="verses"]',
+    // Add more generic selectors
+    'button[value="verses"]',
+    'button:contains("Bible Verses")',
+    // Try data-state attribute
+    '[data-state][value="verses"]',
+    // Try radix tab selectors
+    '[data-radix-tab][value="verses"]',
+    // Let's try classes that might contain tab details
+    '.tabs [value="verses"]',
+    '.tab-navigation [value="verses"]',
+    // Try by aria-label
+    '[aria-label="Bible Verses"]'
   ];
   
   let versesTab: HTMLElement | null = null;
   
-  for (const selector of versesTabSelectors) {
-    const tab = document.querySelector(selector) as HTMLElement;
-    if (tab) {
-      versesTab = tab;
-      console.log(`Found verses tab with selector: ${selector}`);
+  // Custom selector for text content
+  const buttons = document.querySelectorAll('button');
+  for (const button of buttons) {
+    if ((button.textContent || '').trim().toLowerCase().includes('bible verses')) {
+      versesTab = button;
+      console.log('Found verses tab by button text content');
       break;
     }
   }
   
+  // If not found by text, try the standard selectors
+  if (!versesTab) {
+    for (const selector of versesTabSelectors) {
+      try {
+        const tab = document.querySelector(selector) as HTMLElement;
+        if (tab) {
+          versesTab = tab;
+          console.log(`Found verses tab with selector: ${selector}`);
+          break;
+        }
+      } catch (e) {
+        console.log(`Error with selector ${selector}:`, e);
+      }
+    }
+  }
+  
   if (versesTab) {
-    console.log('Clicking verses tab');
-    versesTab.click();
+    console.log('Clicking verses tab', versesTab);
     
-    // With our new component approach, we don't need to manually click the resource tab
-    // The VerseResourceTabs component will automatically show the correct tab based on sessionStorage
-    console.log('VerseResourceTabs component will automatically handle tab selection');
+    try {
+      // Try different methods to trigger the tab click
+      versesTab.click(); // Standard click
+      
+      // Also try event dispatching
+      const clickEvent = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        view: window
+      });
+      versesTab.dispatchEvent(clickEvent);
+      
+      // Try to set active attributes directly
+      versesTab.setAttribute('data-state', 'active');
+      versesTab.setAttribute('aria-selected', 'true');
+      
+      console.log('VerseResourceTabs will automatically handle tab selection via sessionStorage');
+    } catch (error) {
+      console.error('Error clicking verses tab:', error);
+    }
     
-    // Trigger a focus event to help force a re-render in some cases
+    // Add a forced scroll to the Bible Verses section to ensure it's visible
     setTimeout(() => {
+      // Try to scroll to the Bible Verses section
+      try {
+        const bibleVersesSection = document.querySelector('[data-value="verses"], [id="verses-tab"]');
+        if (bibleVersesSection) {
+          bibleVersesSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      } catch (e) {
+        console.error('Error scrolling to Bible Verses section:', e);
+      }
+      
       // Find the verse container by reference
       const verseContainers = document.querySelectorAll('[data-verse-ref]');
       console.log(`Found ${verseContainers.length} verse containers`);
