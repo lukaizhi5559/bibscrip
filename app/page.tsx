@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type FormEvent, useEffect, useRef, KeyboardEvent } from "react"
+import React, { FormEvent, KeyboardEvent, useCallback, useEffect, useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -45,7 +45,8 @@ export default function HomePage() {
   const searchParams = useSearchParams()
   const router = useRouter()
   
-  const [inputValue, setInputValue] = useState("")
+  const [inputValue, setInputValue] = useState<string>("")
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [chatResponse, setChatResponse] = useState<ChatResponseData | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -57,6 +58,17 @@ export default function HomePage() {
   // Check if we're on mobile
   const isMobile = useMediaQuery("(max-width: 768px)")
   
+  // Auto-resize textarea to fit content
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      // Reset height to get the correct scrollHeight
+      textarea.style.height = 'auto';
+      // Set the height to match content
+      textarea.style.height = `${Math.max(100, textarea.scrollHeight)}px`;
+    }
+  }, [inputValue])
+
   // Check for query parameter on load
   useEffect(() => {
     const q = searchParams.get('q')
@@ -108,9 +120,8 @@ export default function HomePage() {
       
       // Transform API response to match ChatResponseData format
       const chatResponseData: ChatResponseData = {
-        aiAnswer: data.ai, // API returns 'ai' field, not 'aiAnswer'
+        aiAnswer: data.ai, 
         referencedVerses: data.verses.map((verse: {ref: string, text: string, translation?: string, link?: string}) => ({
-          // Transform 'ref' from API to 'reference' expected by Verse interface
           reference: verse.ref,
           text: verse.text,
           translation: verse.translation,
@@ -150,10 +161,17 @@ export default function HomePage() {
     setResultsOpen(prev => !prev)
   }
 
+  const placeholderText = `Ask a question or explore Scripture deeply...
+
+  Example:
+  What does Romans 8:28 mean?
+  Include related verses and how to apply it today.`;
+
+
   return (
     <div className={`flex w-full h-full ${resultsOpen && !isMobile ? 'overflow-hidden' : ''}`}>
       {/* Main content area - always visible but resized on desktop when results are open */}
-      <div className={`flex flex-col h-full overflow-y-auto items-center transition-all duration-300 ease-in-out
+      <div className={`flex flex-col h-full overflow-y-auto items-center border-r border-border/40 transition-all duration-300 ease-in-out
         ${resultsOpen && !isMobile ? 'w-1/3 min-w-[350px]' : 'w-full'}`}>
         <section className="w-full max-w-2xl mx-auto text-center py-8 md:py-12 px-4">
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">Ask BibScrip Anything</h1>
@@ -163,6 +181,7 @@ export default function HomePage() {
           <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-3 max-w-3xl mx-auto">
             <div className="relative">
               <Textarea
+                ref={textareaRef}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={(e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -199,8 +218,8 @@ export default function HomePage() {
                     }
                   }
                 }}
-                placeholder="What does Romans 8:28 mean? \nInclude cross-references to other related verses.\nSummarize how a Christian can apply this verse in daily life."
-                className="min-h-[100px] flex-grow text-base shadow-sm focus-visible:ring-0 border-yellow-500/50 focus-visible:border-yellow-500 pr-14 resize-none rounded-xl py-3 px-4"
+                placeholder={placeholderText}
+                className="min-h-[100px] text-base shadow-sm focus-visible:ring-0 border-yellow-500/50 focus-visible:border-yellow-500 pr-14 resize-none rounded-xl py-3 px-4 overflow-hidden"
                 aria-label="Ask a question about the Bible"
               />
               <Button 
@@ -260,7 +279,7 @@ export default function HomePage() {
 
       {/* Results panel - fixed overlay on mobile, side-by-side on desktop */}
       <div 
-        className={`${isMobile ? 'fixed top-0 right-0 z-50' : 'relative'} ${isMobile ? 'h-full' : 'min-h-screen'} bg-background border-l border-border overflow-y-auto transition-all duration-300 ease-in-out
+        className={`${isMobile ? 'fixed top-0 right-0 z-50' : 'relative'} ${isMobile ? 'h-full' : 'min-h-screen'} bg-background border-border overflow-y-auto transition-all duration-300 ease-in-out
           ${resultsOpen 
             ? (isMobile ? 'translate-x-0 w-full' : 'w-2/3 translate-x-0') 
             : (isMobile ? 'translate-x-full' : 'w-0 opacity-0 invisible')}`}
@@ -276,7 +295,7 @@ export default function HomePage() {
             {resultsOpen ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
           </Button>
 
-          <div className="p-4 h-full overflow-y-auto">
+          <div className="px-6 py-4 h-full overflow-y-auto">
             {/* Show loading spinner inside the panel while data is loading */}
             {isLoading ? (
               <div className="flex flex-col items-center justify-center h-full">
@@ -298,6 +317,7 @@ export default function HomePage() {
                   source: 'Bible API'
                 }))}
                 loading={isLoading}
+                chatResponse={chatResponse}
                 detectedContentType={detectedContentType}
                 onSave={() => alert('Bookmark feature coming soon!')}
                 onShare={() => {

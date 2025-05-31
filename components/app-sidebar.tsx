@@ -161,7 +161,7 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
-          <SidebarSeparator className="my-1" />
+          {/* <SidebarSeparator className="my-1" />
           <SidebarMenuItem>
             <SidebarMenuButton
               icon={<LogOut />}
@@ -169,7 +169,7 @@ export function AppSidebar() {
               tooltip="Logout"
               onClick={() => alert("Logout clicked!")}
             />
-          </SidebarMenuItem>
+          </SidebarMenuItem> */}
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>

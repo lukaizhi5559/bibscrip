@@ -589,7 +589,7 @@ export const SidebarInset = React.forwardRef<HTMLDivElement, React.ComponentProp
     return (
       <main
         ref={ref}
-        className={cn("flex-1 transition-[margin-left] duration-200 ease-linear w-full", marginLeftClass, className)}
+        className={cn("flex-1 transition-[margin-left] duration-200 ease-linear", marginLeftClass, className)}
         {...props}
       />
     )

@@ -2,6 +2,19 @@
 import { Anthropic } from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 
+// System instructions for all LLMs to understand BibScrip's capabilities
+const BIBSCRIP_SYSTEM_INSTRUCTIONS = `
+You are BibScrip, a Bible study AI assistant embedded in a web application.
+
+IMPORTANT CAPABILITIES:
+1. Users can EXPORT study content directly from the app in multiple formats (PDF, Word, Excel)
+2. When users ask about saving, downloading, or exporting content, inform them about the Export button in the results panel
+3. Never direct users to external websites for downloading content that can be exported from the app
+4. The app has built-in export functionality for Bible study content including verses, commentary and answers
+
+Provide helpful, biblically sound answers to questions. For any export or download requests, refer to the app's built-in functionality.
+`;
+
 // Ensure API keys are set in your .env.local file
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -20,7 +33,10 @@ async function askOpenAI(question: string): Promise<string | null> {
     try {
       const completion = await openai.chat.completions.create({
         model: 'gpt-4-turbo',
-        messages: [{ role: 'user', content: question }],
+        messages: [
+          { role: 'system', content: BIBSCRIP_SYSTEM_INSTRUCTIONS },
+          { role: 'user', content: question }
+        ],
       });
       const response = completion.choices[0]?.message?.content;
       if (response) {
@@ -40,7 +56,10 @@ async function askOpenAI(question: string): Promise<string | null> {
     // Fallback to GPT-3.5 Turbo
     const completion35 = await openai.chat.completions.create({
       model: 'gpt-3.5-turbo',
-      messages: [{ role: 'user', content: question }],
+      messages: [
+        { role: 'system', content: BIBSCRIP_SYSTEM_INSTRUCTIONS },
+        { role: 'user', content: question }
+      ],
     });
     const response35 = completion35.choices[0]?.message?.content;
     if (response35) {
@@ -68,7 +87,10 @@ async function askClaude(question: string): Promise<string | null> {
     const response = await anthropic.messages.create({
       model: 'claude-3-opus-20240229', // Or claude-3-sonnet or claude-3-haiku
       max_tokens: 2000, // Adjust as needed
-      messages: [{ role: 'user', content: question }],
+      system: BIBSCRIP_SYSTEM_INSTRUCTIONS,
+      messages: [
+        { role: 'user', content: question }
+      ],
     });
     const claudeResponse = response.content[0]?.type === 'text' ? response.content[0].text : null;
     if (claudeResponse) {
@@ -108,7 +130,10 @@ async function askMistral(question: string): Promise<string | null> {
       },
       body: JSON.stringify({
         model: model,
-        messages: [{ role: 'user', content: question }],
+        messages: [
+          { role: 'system', content: BIBSCRIP_SYSTEM_INSTRUCTIONS },
+          { role: 'user', content: question }
+        ],
         max_tokens: 2000,
         temperature: 0.7,
       }),

@@ -3,7 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MessageSquare, Book, Video, BookOpen, Share2, Bookmark, ChevronDown, ChevronUp } from 'lucide-react';
+import { MessageSquare, Book, Video, BookOpen, Share2, Bookmark, ChevronDown, ChevronUp, FileDown } from 'lucide-react';
+import { DocumentExport } from './document-export';
+import { ChatResponseData } from './chat-response-card';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ReferenceLinks } from './reference-links';
@@ -30,6 +32,7 @@ interface ResultsLayoutProps {
   onSave?: () => void;
   onShare?: () => void;
   detectedContentType?: 'topic' | 'character' | 'verse' | 'general';
+  chatResponse?: ChatResponseData | null;
 }
 
 /**
@@ -43,7 +46,8 @@ export function ResultsLayout({
   loading = false,
   onSave,
   onShare,
-  detectedContentType = 'general'
+  detectedContentType = 'general',
+  chatResponse
 }: ResultsLayoutProps) {
   const [activeTab, setActiveTab] = useState('answer');
   const [showAllVerses, setShowAllVerses] = useState(false);
@@ -80,7 +84,7 @@ export function ResultsLayout({
   const showCharacterCard = detectedContentType === 'character' && !question.toLowerCase().includes('verse');
   
   return (
-    <div className="container mx-auto max-w-4xl py-6">
+    <div className="w-full max-w-4xl py-6">
       {/* Main question display */}
       <h1 className="text-2xl font-bold mb-4">{question}</h1>
       
@@ -126,12 +130,23 @@ export function ResultsLayout({
                 </CardTitle>
                 
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm" onClick={onSave}>
-                    <Bookmark className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={onShare}>
-                    <Share2 className="h-4 w-4" />
-                  </Button>
+                  {chatResponse && (
+                    <DocumentExport 
+                      question={question} 
+                      chatResponse={chatResponse} 
+                      className="mr-1"
+                    />
+                  )}
+                  {onSave && (
+                    <Button variant="ghost" size="sm" onClick={onSave}>
+                      <Bookmark className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {onShare && (
+                    <Button variant="ghost" size="sm" onClick={onShare}>
+                      <Share2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
               <CardDescription>
