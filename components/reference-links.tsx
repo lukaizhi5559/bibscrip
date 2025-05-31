@@ -8,6 +8,7 @@ interface ReferenceLinksProps {
   showBibleGateway?: boolean;
   showBibleHub?: boolean;
   showBlueLetterBible?: boolean;
+  bibleGatewayLink?: string; // Optional direct link to BibleGateway
 }
 
 /**
@@ -20,25 +21,115 @@ export function ReferenceLinks({
   showBibleGateway = true,
   showBibleHub = true,
   showBlueLetterBible = true,
+  bibleGatewayLink,
 }: ReferenceLinksProps) {
+  // Ensure translations is always a valid array with at least one item
+  const safeTranslations = (!translations || translations.length === 0) ? ['NIV'] : 
+    translations.map(t => t || 'NIV');
+    
   // Parse the passage to handle the various URL formats
-  const formattedPassage = formatPassageForUrl(passage);
-  const primaryTranslation = translations[0]?.toLowerCase() || 'niv';
+  const formattedPassage = formatPassageForUrl(passage || 'John 3:16');
+  
+  // Map translation codes to their proper values for different Bible sites
+  const getTranslationCode = (translation: string, site: 'biblegateway' | 'biblehub' | 'blueletterbible'): string => {
+    const translationMap: Record<string, Record<string, string>> = {
+      'web': {
+        biblegateway: 'WEB',  // BibleGateway uses WEB for World English Bible
+        biblehub: 'web',      // BibleHub uses lowercase
+        blueletterbible: 'web' // BlueLetterBible uses web
+      },
+      'world': {
+        biblegateway: 'WEB',  // Correct 'world' to 'WEB'
+        biblehub: 'web',
+        blueletterbible: 'web'
+      },
+      'niv': {
+        biblegateway: 'NIV',
+        biblehub: 'niv',
+        blueletterbible: 'NIV'
+      },
+      'esv': {
+        biblegateway: 'ESV',
+        biblehub: 'esv',
+        blueletterbible: 'ESV'
+      },
+      'kjv': {
+        biblegateway: 'KJV',
+        biblehub: 'kjv',
+        blueletterbible: 'KJV'
+      },
+      'nkjv': {
+        biblegateway: 'NKJV',
+        biblehub: 'nkjv',
+        blueletterbible: 'NKJV'
+      },
+      'nasb': {
+        biblegateway: 'NASB',
+        biblehub: 'nasb',
+        blueletterbible: 'NASB'
+      }
+    };
+    
+    // Convert translation to lowercase for consistent lookup
+    const normTranslation = translation.toLowerCase();
+    if (translationMap[normTranslation] && translationMap[normTranslation][site]) {
+      return translationMap[normTranslation][site];
+    }
+    
+    // Default fallbacks per site
+    const defaults = {
+      biblegateway: 'NIV',
+      biblehub: 'niv',
+      blueletterbible: 'NKJV'
+    };
+    
+    return defaults[site];
+  };
+  
+  console.log('ReferenceLinks props:', { passage, translations, bibleGatewayLink });
+  
+  // Parse the bibleGatewayLink if available
+  let linkParams: { search: string; version: string } = {
+    search: passage || 'John 3:16', // Use the provided passage as default
+    version: getTranslationCode(safeTranslations[0], 'biblegateway')
+  };
+  
+  // If a Bible Gateway link is provided, extract parameters from it
+  if (bibleGatewayLink) {
+    try {
+      const url = new URL(bibleGatewayLink);
+      const searchParam = url.searchParams.get('search');
+      const versionParam = url.searchParams.get('version');
+      
+      // Only update if values are present in the URL
+      if (searchParam) linkParams.search = searchParam;
+      if (versionParam) linkParams.version = versionParam;
+      
+      console.log('Extracted from BibleGateway link:', linkParams);
+    } catch (e) {
+      console.error('Failed to parse BibleGateway link:', e);
+    }
+  }
+  
+  // Ensure we have a valid search parameter
+  if (!linkParams.search || linkParams.search === 'undefined') {
+    linkParams.search = passage || 'John 3:16';
+  }
   
   // Extract book, chapter, and verse for BibleHub and BlueLetterBible
-  const { book, chapter, verse } = parsePassage(passage);
-  
+  // Use search parameter from the Bible Gateway link if available
+  const passageToUse = linkParams.search || passage || 'John 3:16';
+  const { book, chapter, verse } = parsePassage(passageToUse);
+
   return (
     <div className="flex flex-wrap gap-2 mt-2">
       {showBibleGateway && (
         <Button 
           variant="outline" 
           size="sm"
-          onClick={() => window.open(
-            `https://www.biblegateway.com/passage/?search=${formattedPassage}&version=${primaryTranslation}`, 
-            '_blank'
-          )}
+          onClick={() => window.open(bibleGatewayLink || `https://www.biblegateway.com/passage/?search=${linkParams.search}&version=${linkParams.version}`, '_blank')}
           className="flex items-center gap-1 text-sm"
+          aria-label={`Open ${passage} on Bible Gateway`}
         >
           <span className="mr-1">📘</span> BibleGateway
           <ExternalLink className="h-3 w-3 ml-1" />
@@ -67,7 +158,7 @@ export function ReferenceLinks({
           variant="outline" 
           size="sm"
           onClick={() => window.open(
-            `https://www.blueletterbible.org/${primaryTranslation}/${getBookCode(book)}/${chapter}/${verse || '1'}/s_${getBLBCode(book, chapter, verse)}`,
+            `https://www.blueletterbible.org/${getTranslationCode(safeTranslations[0] || 'niv', 'blueletterbible')}/${getBookCode(book)}/${chapter}/${verse || '1'}/s_${getBLBCode(book, chapter, verse)}`,
             '_blank'
           )}
           className="flex items-center gap-1 text-sm"
@@ -78,12 +169,12 @@ export function ReferenceLinks({
       )}
       
       {/* Multi-translation comparison button - only show if multiple translations */}
-      {translations.length > 1 && showBibleGateway && (
+      {safeTranslations.length > 1 && (
         <Button 
           variant="outline" 
           size="sm"
           onClick={() => window.open(
-            `https://www.biblegateway.com/passage/?search=${formattedPassage}&version=${translations.map(t => t.toLowerCase()).join('%2C')}`, 
+            `https://www.biblegateway.com/passage/?search=${linkParams.search}&version=${safeTranslations.map(t => getTranslationCode(t, 'biblegateway')).join('%2C')}`, 
             '_blank'
           )}
           className="flex items-center gap-1 text-sm"
@@ -107,27 +198,48 @@ function formatPassageForUrl(passage: string): string {
 /**
  * Parse a passage into its components
  */
-function parsePassage(passage: string): { book: string; chapter: string; verse?: string } {
+function parsePassage(passage?: string): { book: string; chapter: string; verse?: string } {
+  // Handle undefined or empty passage
+  if (!passage) {
+    return { book: 'john', chapter: '3', verse: '16' }; // Default to John 3:16
+  }
+
+  console.log('Parsing passage:', passage);
+  
   // Handle basic format like "John 3:16" or "Romans 8:28-30"
   const parts = passage.trim().split(' ');
-  let book = parts[0];
+  let book = parts[0] || 'john';
+  let remainingParts = [...parts];
   
   // Handle books with spaces like "1 Corinthians"
-  if (parts.length > 2 && /^[123]$/.test(parts[0])) {
+  if (parts.length > 1 && /^[123]$/.test(parts[0])) {
     book = `${parts[0]} ${parts[1]}`;
-    parts.splice(0, 2, book);
+    remainingParts = parts.slice(2);
+  } else {
+    remainingParts = parts.slice(1);
   }
   
-  if (parts.length < 2) {
+  // Handle case when there's just a chapter number with no verse (e.g., 'Romans 2')
+  if (remainingParts.length === 0) {
     return { book, chapter: '1' };
   }
   
-  // Parse chapter and verse
-  const chapterVerse = parts[1].split(':');
-  const chapter = chapterVerse[0];
-  const verse = chapterVerse.length > 1 ? chapterVerse[1].split('-')[0].split(',')[0] : undefined;
+  // Get the first part after the book name
+  const chapterPart = remainingParts[0];
   
-  return { book, chapter, verse };
+  // Check if it has a colon (indicating chapter:verse format)
+  if (chapterPart.includes(':')) {
+    const chapterVerse = chapterPart.split(':');
+    const chapter = chapterVerse[0];
+    const verse = chapterVerse.length > 1 ? chapterVerse[1].split('-')[0].split(',')[0] : undefined;
+    return { book, chapter, verse };
+  } else {
+    // Just a chapter number with no verse (e.g., 'Romans 2')
+    return { book, chapter: chapterPart };
+  }
+  
+  // Default fallback should never be reached with the above conditions
+  return { book, chapter: '1' };
 }
 
 /**

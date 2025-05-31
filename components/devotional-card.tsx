@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar, Bookmark, Share2, ChevronLeft, ChevronRight, Heart } from 'lucide-react';
 import { ReferenceLinks } from '@/components/reference-links';
+import { ExpandableText } from '@/components/expandable-text';
 
 interface DevotionalVerse {
   reference: string;
@@ -93,17 +94,30 @@ export function DevotionalCard({
             <span>{mainVerse.reference}</span>
             <Badge variant="outline">{mainVerse.translation}</Badge>
           </h3>
-          <blockquote className="mt-2 pl-4 border-l-2 border-primary italic">
-            {mainVerse.text}
-          </blockquote>
           <div className="mt-2">
-            <ReferenceLinks passage={mainVerse.reference} translations={[mainVerse.translation]} />
+            <ExpandableText
+              text={mainVerse.text}
+              maxLength={150}
+              textClassName="pl-4 border-l-2 border-muted-foreground/30 italic text-muted-foreground"
+              expandButtonClassName="text-xs mt-1"
+            />
+          </div>
+          <div className="mt-2">
+            <ReferenceLinks 
+              passage={mainVerse.reference} 
+              translations={[mainVerse.translation || 'NIV']} 
+            />
           </div>
         </div>
         
         {/* Devotional Content */}
         <div className="prose prose-sm dark:prose-invert max-w-none">
-          <p>{content}</p>
+          <ExpandableText
+            text={content}
+            maxLength={250}
+            textClassName="text-base"
+            expandButtonClassName="text-sm mt-2"
+          />
         </div>
         
         {/* Additional Verses */}
@@ -117,11 +131,19 @@ export function DevotionalCard({
                     <h4 className="font-medium">{verse.reference}</h4>
                     <Badge variant="outline">{verse.translation}</Badge>
                   </div>
-                  <blockquote className="mt-2 pl-4 border-l-2 border-muted-foreground/30 italic text-muted-foreground">
-                    {verse.text}
-                  </blockquote>
                   <div className="mt-2">
-                    <ReferenceLinks passage={verse.reference} translations={[verse.translation]} />
+                    <ExpandableText
+                      text={verse.text}
+                      maxLength={120}
+                      textClassName="pl-4 border-l-2 border-muted-foreground/30 italic text-muted-foreground"
+                      expandButtonClassName="text-xs mt-1"
+                    />
+                  </div>
+                  <div className="mt-2">
+                    <ReferenceLinks 
+                      passage={verse.reference} 
+                      translations={[verse.translation || 'NIV']} 
+                    />
                   </div>
                 </div>
               ))}

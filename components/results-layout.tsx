@@ -4,12 +4,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MessageSquare, Book, Video, BookOpen, Share2, Bookmark, ChevronDown, ChevronUp } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { ReferenceLinks } from './reference-links';
 import { VideoResults } from './video-results';
 import { CommentaryToggle } from './commentary-toggle';
 import { TopicCard } from './topic-card';
 import { CharacterCard } from './character-card';
 import { DevotionalCard } from './devotional-card';
+import { ExpandableText } from './expandable-text';
 
 interface BibleVerse {
   ref: string;
@@ -45,14 +48,32 @@ export function ResultsLayout({
   const [activeTab, setActiveTab] = useState('answer');
   const [showAllVerses, setShowAllVerses] = useState(false);
   
+  // Ensure all verses have proper reference values
+  const processedVerses = verses.map(verse => ({
+    ...verse,
+    ref: verse.ref || 'Unknown Reference',
+    translation: verse.translation || 'NIV',
+    link: verse.link || ''
+  }));
+  
   // Display only the first 3 verses by default
-  const visibleVerses = showAllVerses ? verses : verses.slice(0, 3);
-  const hasMoreVerses = verses.length > 3;
+  const visibleVerses = showAllVerses ? processedVerses : processedVerses.slice(0, 3);
+  const hasMoreVerses = processedVerses.length > 3;
   
   // Get unique translations for the verses
   const uniqueTranslations = Array.from(
-    new Set(verses.map(verse => verse.translation.split(' ')[0]))
+    new Set(verses.map(verse => {
+      // Safe check to avoid splitting undefined
+      if (!verse || !verse.translation) return 'NIV';
+      return verse.translation.split(' ')[0];
+    }))
   );
+  
+  // Enhanced debug logging for verse data
+  console.log('Verses data in ResultsLayout:', verses);
+  console.log('Verse refs specifically:', verses.map(v => v.ref));
+  console.log('First verse complete data:', verses[0]);
+  console.log('AI Response:', aiResponse);
   
   // Determine if we should show a specialized card based on the question content
   const showTopicCard = detectedContentType === 'topic' && question.toLowerCase().includes('what does the bible say about');
@@ -121,28 +142,92 @@ export function ResultsLayout({
             <CardContent>
               {/* AI Response */}
               <div className="prose prose-sm dark:prose-invert max-w-none">
-                {aiResponse.split('\n\n').map((paragraph, index) => (
-                  <p key={index}>{paragraph}</p>
-                ))}
+                {aiResponse ? (
+                  <ExpandableText
+                    text={aiResponse}
+                    maxLength={500}
+                    className="markdown-content whitespace-pre-wrap leading-relaxed"
+                    renderContent={(displayText) => {
+                      // Apply simple preprocessing to make numbered lists more markdown-like
+                      let enhancedResponse = displayText;
+                      
+                      // Convert numeric patterns followed by asterisks to headings
+                      enhancedResponse = enhancedResponse.replace(/^(\d+)\. \*\*(.*?)\*\*:/gm, '### $1. $2');
+                      
+                      // Add extra line breaks before numeric list items for better spacing
+                      enhancedResponse = enhancedResponse.replace(/\n(\d+)\. /g, '\n\n$1. ');
+                      
+                      return (
+                        <ReactMarkdown 
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-8 mb-4 text-primary border-b pb-2" {...props} />,
+                            h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-6 mb-3 text-primary" {...props} />,
+                            h3: ({node, ...props}) => <h3 className="text-lg font-semibold mt-5 mb-2 text-primary" {...props} />,
+                            p: ({node, ...props}) => <p className="mb-4 text-base leading-relaxed" {...props} />,
+                            ul: ({node, ...props}) => <ul className="list-disc pl-8 mb-5 space-y-2" {...props} />,
+                            ol: ({node, ...props}) => <ol className="list-decimal pl-8 mb-5 space-y-2" {...props} />,
+                            li: ({node, ...props}) => <li className="mb-2" {...props} />,
+                            em: ({node, ...props}) => <em className="text-muted-foreground italic" {...props} />,
+                            strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
+                            blockquote: ({node, ...props}) => (
+                              <blockquote className="border-l-4 border-primary/30 pl-4 italic my-5 text-muted-foreground bg-muted/50 py-2 pr-2 rounded-sm" {...props} />
+                            ),
+                            a: ({node, ...props}) => (
+                              <a className="text-blue-500 hover:underline font-medium" target="_blank" rel="noopener noreferrer" {...props} />
+                            ),
+                            hr: ({node, ...props}) => <hr className="my-6 border-muted" {...props} />,
+                            code: (props) => {
+                              const { className, children } = props;
+                              const isInlineCode = !className || !className.includes('language-');
+                              
+                              return (
+                                <code
+                                  className={isInlineCode ? 
+                                    "bg-muted px-1.5 py-0.5 rounded-md text-sm font-mono text-primary" : 
+                                    "block bg-muted p-3 rounded-md text-sm font-mono overflow-x-auto my-5 border border-border"}
+                                >
+                                  {children}
+                                </code>
+                              );
+                            }
+                          }}
+                        >
+                          {enhancedResponse}
+                        </ReactMarkdown>
+                      );
+                    }}
+                  />
+                ) : (
+                  <p>No AI response available. Please try your question again.</p>
+                )}
               </div>
               
               {/* Display referenced verses inline with the answer */}
-              {verses.length > 0 && (
+              {processedVerses.length > 0 && (
                 <div className="mt-6 pt-4 border-t border-muted">
                   <h3 className="text-lg font-medium mb-3">Referenced Verses</h3>
-                  {visibleVerses.map((verse) => (
-                    <div key={verse.ref} className="mb-4 pb-4 border-b border-muted last:border-0">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-medium">{verse.ref}</h4>
+                  {visibleVerses.map((verse, index) => (
+                    <div key={`answer-verse-${index}-${verse.ref}`} className="mb-4 pb-4 border-b border-muted last:border-0">
+                      <div className="flex flex-row items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-lg bg-muted px-3 py-1 rounded-md">
+                            {verse && typeof verse.ref === 'string' ? verse.ref : 'Unknown Reference'}
+                          </h4>
+                        </div>
                         <Badge variant="outline">{verse.translation}</Badge>
                       </div>
-                      <blockquote className="mt-2 pl-4 border-l-2 border-muted-foreground/30 italic text-muted-foreground">
-                        {verse.text.trim()}
-                      </blockquote>
+                      <ExpandableText
+                        text={verse.text.trim()}
+                        maxLength={200}
+                        textClassName="pl-4 border-l-2 border-muted-foreground/30 italic text-muted-foreground"
+                        expandButtonClassName="text-xs"
+                      />
                       <div className="mt-2">
                         <ReferenceLinks 
                           passage={verse.ref} 
-                          translations={uniqueTranslations}
+                          translations={[verse.translation || 'NIV']}
+                          bibleGatewayLink={verse.link}
                         />
                       </div>
                     </div>
@@ -175,7 +260,7 @@ export function ResultsLayout({
               {showTopicCard && (
                 <TopicCard 
                   topic={question.replace(/what does the bible say about /i, '').replace(/\?$/, '')}
-                  summary={aiResponse.split('\n\n')[0] || ''}
+                  summary={(aiResponse || '').split('\n\n')[0] || ''}
                   keyVerses={verses.map(v => ({
                     reference: v.ref,
                     text: v.text.trim(),
@@ -189,7 +274,7 @@ export function ResultsLayout({
               {showCharacterCard && (
                 <CharacterCard 
                   name={question.replace(/tell me about /i, '').replace(/\?$/, '')}
-                  description={aiResponse.split('\n\n')[0] || ''}
+                  description={(aiResponse || '').split('\n\n')[0] || ''}
                   timeline="Biblical Era"
                   bookAppearances={['Genesis', 'Exodus']}
                   keyTraits={['Faith', 'Leadership', 'Obedience']}
@@ -229,8 +314,8 @@ export function ResultsLayout({
                 <p className="text-muted-foreground">No Bible verses were referenced in this query.</p>
               ) : (
                 <div className="space-y-6">
-                  {verses.map((verse) => (
-                    <div key={verse.ref} className="pb-6 border-b border-muted last:border-0">
+                  {verses.map((verse, index) => (
+                    <div key={`verses-tab-${index}-${verse.ref}`} className="pb-6 border-b border-muted last:border-0">
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                         <h3 className="text-lg font-medium">{verse.ref}</h3>
                         <div className="flex items-center gap-2">
@@ -239,14 +324,17 @@ export function ResultsLayout({
                         </div>
                       </div>
                       
-                      <blockquote className="pl-4 border-l-2 border-primary italic">
-                        {verse.text.trim()}
-                      </blockquote>
+                      <ExpandableText
+                        text={verse.text.trim()}
+                        maxLength={250}
+                        textClassName="pl-4 border-l-2 border-muted-foreground/30 italic text-muted-foreground"
+                        expandButtonClassName="text-xs mt-1"
+                      />
                       
                       <div className="mt-3">
                         <ReferenceLinks 
                           passage={verse.ref} 
-                          translations={uniqueTranslations}
+                          translations={[verse.translation || 'NIV']}
                           showBibleGateway={true}
                           showBibleHub={true}
                           showBlueLetterBible={true}
@@ -314,7 +402,7 @@ export function ResultsLayout({
               mainVerse={{
                 reference: verses[0]?.ref || "Philippians 4:6-7",
                 text: verses[0]?.text || "Do not be anxious about anything, but in every situation, by prayer and petition, with thanksgiving, present your requests to God. And the peace of God, which transcends all understanding, will guard your hearts and your minds in Christ Jesus.",
-                translation: verses[0]?.translation || "NIV"
+                translation: verses[0]?.translation ? verses[0].translation : "NIV"
               }}
               additionalVerses={[
                 {
