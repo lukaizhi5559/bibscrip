@@ -33,9 +33,10 @@ export default function VerseResourceTabs({ verse, defaultTab = 'text' }: VerseR
     return book.toLowerCase().replace(/\s+/g, '');
   };
   
-  // Return to the standard passage URL - using the simplest and most reliable format
-  // This is the format that was partially working before
-  const bibleGatewayUrl = `https://www.biblegateway.com/passage/?search=${verse.ref}&version=${verse.translation || 'NIV'}`;
+  // Format BibleGateway URL properly to ensure verse content is displayed
+  // Using a format that's known to work well with direct verse display
+  const formattedRef = encodeURIComponent(verse.ref).replace(/%20/g, '+');
+  const bibleGatewayUrl = `https://www.biblegateway.com/passage/?search=${formattedRef}&version=${verse.translation || 'NIV'}`;
   
   const { book, chapter, verse: verseNum } = parsePassage(verse.ref);
   const bibleHubUrl = verseNum
