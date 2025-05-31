@@ -26,7 +26,7 @@ const anthropic = new Anthropic({
 
 // Mistral API will be accessed directly via fetch // e.g., "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
 
-async function askOpenAI(question: string): Promise<string | null> {
+async function askOpenAI(question: string, signal?: AbortSignal): Promise<string | null> {
   console.log('Attempting OpenAI...');
   try {
     // Try GPT-4 Turbo first
@@ -37,6 +37,7 @@ async function askOpenAI(question: string): Promise<string | null> {
           { role: 'system', content: BIBSCRIP_SYSTEM_INSTRUCTIONS },
           { role: 'user', content: question }
         ],
+        ...(signal ? { signal } : {}),
       });
       const response = completion.choices[0]?.message?.content;
       if (response) {
@@ -60,6 +61,7 @@ async function askOpenAI(question: string): Promise<string | null> {
         { role: 'system', content: BIBSCRIP_SYSTEM_INSTRUCTIONS },
         { role: 'user', content: question }
       ],
+      ...(signal ? { signal } : {}),
     });
     const response35 = completion35.choices[0]?.message?.content;
     if (response35) {
@@ -77,7 +79,7 @@ async function askOpenAI(question: string): Promise<string | null> {
   }
 }
 
-async function askClaude(question: string): Promise<string | null> {
+async function askClaude(question: string, signal?: AbortSignal): Promise<string | null> {
   console.log('Attempting Claude...');
   if (!process.env.ANTHROPIC_API_KEY) {
     console.warn('Anthropic API key not configured. Skipping Claude.');
@@ -91,6 +93,7 @@ async function askClaude(question: string): Promise<string | null> {
       messages: [
         { role: 'user', content: question }
       ],
+      ...(signal ? { signal } : {}),
     });
     const claudeResponse = response.content[0]?.type === 'text' ? response.content[0].text : null;
     if (claudeResponse) {
@@ -107,7 +110,7 @@ async function askClaude(question: string): Promise<string | null> {
   }
 }
 
-async function askMistral(question: string): Promise<string | null> {
+async function askMistral(question: string, signal?: AbortSignal): Promise<string | null> {
   console.log('Attempting Mistral...');
 
   if (!process.env.MISTRAL_API_KEY) {
@@ -137,6 +140,7 @@ async function askMistral(question: string): Promise<string | null> {
         max_tokens: 2000,
         temperature: 0.7,
       }),
+      signal, // Pass the signal directly to fetch
     });
 
     if (!response.ok) {
@@ -174,35 +178,98 @@ async function askMistral(question: string): Promise<string | null> {
 /**
  * Gets an AI response to a question using a fallback chain: OpenAI -> Mistral -> Claude.
  * @param question The user's question.
+ * @param options Optional parameters including timeout and starting provider
  * @returns A Promise resolving to the AI's answer string, or a default message if all fail.
  */
-export async function getAIResponse(question: string): Promise<string> {
-  // 1. Try OpenAI
-  try {
-    const openaiResponse = await askOpenAI(question);
-    if (openaiResponse) return openaiResponse;
-    console.log('OpenAI did not return a response or failed non-critically, trying Mistral...');
-  } catch (openaiError: any) {
-    console.warn(`OpenAI critical failure (${(openaiError as Error).message}), trying Mistral...`);
+export async function getAIResponse(
+  question: string, 
+  options?: { 
+    startProvider?: 'openai' | 'mistral' | 'claude',
+    timeoutMs?: number 
+  }
+): Promise<string> {
+  const startProvider = options?.startProvider || 'openai';
+  const timeoutMs = options?.timeoutMs;
+  
+  console.log(`Getting AI response with options: startProvider=${startProvider}, timeout=${timeoutMs || 'none'}`);
+  
+  // Create AbortController for timeout if timeoutMs is specified
+  let controller: AbortController | undefined;
+  let timeoutId: NodeJS.Timeout | undefined;
+  
+  if (timeoutMs) {
+    controller = new AbortController();
+    timeoutId = setTimeout(() => {
+      controller?.abort();
+      console.log(`Request timed out after ${timeoutMs}ms`);
+    }, timeoutMs);
+  }
+  
+  // Function to ensure cleanup of timeout
+  const cleanup = () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutId = undefined;
+    }
+  };
+
+  // 1. Try OpenAI if starting with it
+  if (startProvider === 'openai') {
+    try {
+      const openaiResponse = await askOpenAI(question, controller?.signal);
+      if (openaiResponse) {
+        cleanup();
+        return openaiResponse;
+      }
+      console.log('OpenAI did not return a response or failed non-critically, trying Mistral...');
+    } catch (openaiError: any) {
+      // Check if it was aborted due to timeout
+      if (openaiError.name === 'AbortError') {
+        console.log('OpenAI request aborted due to timeout, falling back to Mistral...');
+      } else {
+        console.warn(`OpenAI critical failure (${(openaiError as Error).message}), trying Mistral...`);
+      }
+    }
   }
 
-  // 2. Try Mistral
-  try {
-    const mistralResponse = await askMistral(question);
-    if (mistralResponse) return mistralResponse;
-    console.log('Mistral did not return a response or failed non-critically, trying Claude...');
-  } catch (mistralError: any) {
-    console.warn(`Mistral critical failure (${(mistralError as Error).message}), trying Claude...`);
+  // 2. Try Mistral if starting with it or OpenAI failed
+  if (startProvider === 'mistral' || startProvider === 'openai') {
+    try {
+      const mistralResponse = await askMistral(question, controller?.signal);
+      if (mistralResponse) {
+        cleanup();
+        return mistralResponse;
+      }
+      console.log('Mistral did not return a response or failed non-critically, trying Claude...');
+    } catch (mistralError: any) {
+      // Check if it was aborted due to timeout
+      if (mistralError.name === 'AbortError') {
+        console.log('Mistral request aborted due to timeout, falling back to Claude...');
+      } else {
+        console.warn(`Mistral critical failure (${(mistralError as Error).message}), trying Claude...`);
+      }
+    }
   }
 
-  // 3. Try Claude
+  // 3. Try Claude as last resort
   try {
-    const claudeResponse = await askClaude(question);
-    if (claudeResponse) return claudeResponse;
+    const claudeResponse = await askClaude(question, controller?.signal);
+    if (claudeResponse) {
+      cleanup();
+      return claudeResponse;
+    }
   } catch (claudeError: any) {
-    console.warn(`Claude critical failure (${(claudeError as Error).message}). All providers attempted.`);
+    // Check if it was aborted due to timeout
+    if (claudeError.name === 'AbortError') {
+      console.log('Claude request aborted due to timeout, all providers timed out.');
+    } else {
+      console.warn(`Claude critical failure (${(claudeError as Error).message}). All providers attempted.`);
+    }
   }
 
-  console.error('All AI providers failed to generate a response after attempting OpenAI -> Mistral -> Claude.');
+  // Clean up timeout if it hasn't fired yet
+  cleanup();
+
+  console.error('All AI providers failed to generate a response after attempting the provider chain.');
   return 'Sorry, I was unable to process your request with any of our AI providers at the moment. Please try again later.';
 }

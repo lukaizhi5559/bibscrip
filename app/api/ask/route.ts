@@ -65,20 +65,34 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { question } = body;
+    const { question, useFallback, timeoutEnabled } = body;
 
     if (!question || typeof question !== 'string') {
       return NextResponse.json({ error: 'Question is required and must be a string.' }, { status: 400 });
     }
 
     console.log(`Received question from IP ${ip}:`, question);
+    console.log(`Request options: useFallback=${useFallback}, timeoutEnabled=${timeoutEnabled}`);
 
     // Extract translation preference from the question
     const preferredTranslation = extractTranslationPreference(question);
     console.log('Detected translation preference:', preferredTranslation || 'None (using default)');
     
-    // 1. Get AI response
-    const aiExplanation = await getAIResponse(question);
+    // 1. Get AI response with possible fallback options
+    let startProvider: 'openai' | 'mistral' | 'claude' = 'openai'; // Default start with OpenAI
+    
+    if (useFallback) {
+      // If fallback is requested, start with Mistral (skip OpenAI)
+      // This follows the user's preference of OpenAI -> Mistral -> Claude
+      console.log('Using fallback chain starting with Mistral');
+      startProvider = 'mistral';
+    }
+    
+    // Set a timeout limit for API calls if requested
+    // This will be handled inside getAIResponse with AbortController
+    const timeoutMs = timeoutEnabled ? 18000 : undefined; // 18 seconds if enabled
+    
+    const aiExplanation = await getAIResponse(question, { startProvider, timeoutMs });
 
     // 2. Extract verse references from the original question AND the AI's response
     // This helps catch verses mentioned by the user or cited by the AI.
@@ -109,6 +123,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ai: aiExplanation,
       verses: fetchedVerses,
+      provider: startProvider, // Include which provider was used for debugging
     });
 
   } catch (error) {

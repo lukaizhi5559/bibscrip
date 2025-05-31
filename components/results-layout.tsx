@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import VerseResourceTabs from './verse-resource-tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,8 @@ import { DevotionalCard } from './devotional-card';
 import { ExpandableText } from './expandable-text';
 // Import the parsing functions
 import { parsePassage, getBookCode, formatPassageForUrl } from '@/utils/biblical-helpers';
+// Import string helpers
+import { truncateText } from '@/utils/string-helpers';
 
 interface BibleVerse {
   ref: string;
@@ -92,44 +95,18 @@ export function ResultsLayout({
   const [activeTab, setActiveTab] = useState('answer');
   const [showAllVerses, setShowAllVerses] = useState(false);
   
-  // State to track active resource tab for each verse - initialized with 'text' for all verses
-  const [verseResourceTabs, setVerseResourceTabs] = useState<Record<string, string>>({});
+  // State to track active main tab (answer, verses, videos, resources)
+  // The nested verse resource tabs are now handled by individual VerseResourceTabs components
   
-  // Function to update the active tab for a specific verse
-  const updateVerseResourceTab = (verseRef: string, tabValue: string) => {
-    setVerseResourceTabs(prev => ({
-      ...prev,
-      [verseRef]: tabValue
-    }));
-  };
-  
-  // Helper to get current active tab for a verse, defaulting to 'text'
-  const getVerseResourceTab = (verseRef: string) => {
-    return verseResourceTabs[verseRef] || 'text';
-  };
-  
-  // Effect to initialize verse tab state and handle navigation from external components
-  useEffect(() => {
-    // Initialize the verse resource tabs state
-    const initialVerseResourceTabs: Record<string, string> = {};
-    verses.forEach(verse => {
-      initialVerseResourceTabs[verse.ref] = 'text';
-    });
-    
-    // Only initialize if we don't already have values
-    if (Object.keys(verseResourceTabs).length === 0) {
-      setVerseResourceTabs(initialVerseResourceTabs);
-    }
-    
+  // Effect to handle navigation from external components
+  useEffect(() => {    
     // Check if we need to show a specific verse and resource from sessionStorage
     const activeVerseRef = window.sessionStorage.getItem('activeVerseRef');
     const activeResourceTab = window.sessionStorage.getItem('activeResourceTab');
     
     if (activeVerseRef && activeResourceTab) {
-      // Set the appropriate verse tab to the specified resource
-      updateVerseResourceTab(activeVerseRef, activeResourceTab as string);
-      
-      // Ensure we're on the verses tab
+      // Just ensure we're on the verses tab
+      // The actual resource tab will be passed as defaultTab to the VerseResourceTabs component
       setActiveTab('verses');
       
       // Clear the sessionStorage so it doesn't persist across refreshes
@@ -187,12 +164,12 @@ export function ResultsLayout({
   
   return (
     <div className="w-full max-w-4xl py-6">
-      {/* Main question display */}
-      <h1 className="text-2xl font-bold mb-4">{question}</h1>
+      {/* Main question display with truncation for long questions */}
+      <h1 className="text-2xl font-bold mb-4" title={question}>{truncateText(question, 100)}</h1>
       
       {/* Tabs for different content sections */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="w-full max-w-md mb-6">
+        <TabsList className="w-full mb-6">
           <TabsTrigger value="answer" data-value="answer" className="flex-1">
             <MessageSquare className="h-4 w-4 mr-2" />
             <span className="hidden sm:inline">Your Answer</span>
@@ -429,18 +406,7 @@ export function ResultsLayout({
               ) : (
                 <div className="space-y-6">
                   {verses.map((verse, index) => {
-                    // Get the current active tab for this verse
-                    const currentTab = getVerseResourceTab(verse.ref);
-                    
-                    // Generate URLs for different Bible resources
-                    const bibleGatewayUrl = `https://www.biblegateway.com/passage/?search=${encodeURIComponent(verse.ref)}&version=${verse.translation || 'NIV'}`;
-                    
-                    const { book, chapter, verse: verseNum } = parsePassage(verse.ref);
-                    const bibleHubUrl = verseNum
-                      ? `https://biblehub.com/${book?.toLowerCase()}/${chapter}-${verseNum}.htm`
-                      : `https://biblehub.com/${book?.toLowerCase()}/${chapter}.htm`;
-                    
-                    const blueLetterBibleUrl = `https://www.blueletterbible.org/niv/${getBookCode(book || '')}/${chapter}/${verseNum || '1'}`;
+                    // No need to get current tab or generate URLs as the VerseResourceTabs component handles this
                     
                     return (
                       <div key={`verses-tab-${index}-${verse.ref}`} className="pb-6 border-b border-muted last:border-0 verse-container" data-verse-ref={verse.ref}>
@@ -452,80 +418,12 @@ export function ResultsLayout({
                           </div>
                         </div>
                         
-                        {/* Nested tabs for verse text and Bible resources */}
-                        <Tabs 
-                          value={currentTab} 
-                          onValueChange={(value) => updateVerseResourceTab(verse.ref, value)} 
-                          className="w-full mt-2"
-                        >
-                          <TabsList className="grid grid-cols-4 mb-2">
-                            <TabsTrigger value="text" data-value="text">Verse Text</TabsTrigger>
-                            <TabsTrigger value="biblegateway" data-value="biblegateway">BibleGateway</TabsTrigger>
-                            <TabsTrigger value="biblehub" data-value="biblehub">BibleHub</TabsTrigger>
-                            <TabsTrigger value="blueletterbible" data-value="blueletterbible">BlueLetterBible</TabsTrigger>
-                          </TabsList>
-                          
-                          {/* Verse text tab */}
-                          <TabsContent value="text">
-                            <ExpandableText
-                              text={verse.text.trim()}
-                              maxLength={250}
-                              textClassName="pl-4 border-l-2 border-muted-foreground/30 italic text-muted-foreground"
-                              expandButtonClassName="text-xs mt-1"
-                            />
-                          </TabsContent>
-                          
-                          {/* BibleGateway tab - lazy load iframe only when tab is active */}
-                          <TabsContent value="biblegateway">
-                            <div className="relative min-h-[400px] border rounded-md">
-                              <div className="absolute inset-0">
-                                {currentTab === 'biblegateway' && (
-                                  <iframe
-                                    src={bibleGatewayUrl}
-                                    className="w-full h-full border-0"
-                                    title={`BibleGateway - ${verse.ref}`}
-                                    sandbox="allow-same-origin allow-scripts allow-forms"
-                                    loading="lazy"
-                                  />
-                                )}
-                              </div>
-                            </div>
-                          </TabsContent>
-                          
-                          {/* BibleHub tab - lazy load iframe only when tab is active */}
-                          <TabsContent value="biblehub">
-                            <div className="relative min-h-[400px] border rounded-md">
-                              <div className="absolute inset-0">
-                                {currentTab === 'biblehub' && (
-                                  <iframe
-                                    src={bibleHubUrl}
-                                    className="w-full h-full border-0"
-                                    title={`BibleHub - ${verse.ref}`}
-                                    sandbox="allow-same-origin allow-scripts allow-forms"
-                                    loading="lazy"
-                                  />
-                                )}
-                              </div>
-                            </div>
-                          </TabsContent>
-                          
-                          {/* BlueLetterBible tab - lazy load iframe only when tab is active */}
-                          <TabsContent value="blueletterbible">
-                            <div className="relative min-h-[400px] border rounded-md">
-                              <div className="absolute inset-0">
-                                {currentTab === 'blueletterbible' && (
-                                  <iframe
-                                    src={blueLetterBibleUrl}
-                                    className="w-full h-full border-0"
-                                    title={`BlueLetterBible - ${verse.ref}`}
-                                    sandbox="allow-same-origin allow-scripts allow-forms"
-                                    loading="lazy"
-                                  />
-                                )}
-                              </div>
-                            </div>
-                          </TabsContent>
-                        </Tabs>
+                        {/* Use the isolated VerseResourceTabs component */}
+                        <VerseResourceTabs 
+                          verse={verse} 
+                          defaultTab={window.sessionStorage.getItem('activeVerseRef') === verse.ref ? 
+                            (window.sessionStorage.getItem('activeResourceTab') as any) : undefined} 
+                        />
                         
                         {/* Compare translations button */}
                         <div className="mt-4">

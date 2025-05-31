@@ -4,7 +4,7 @@
 
 /**
  * Navigate to a specific tab in the results panel and set the active resource tab for a verse
- * This uses DOM manipulation since we don't have direct access to React context/state across components
+ * This now uses sessionStorage to communicate with our isolated VerseResourceTabs components
  */
 export function navigateToVerseResource(
   verseRef: string, 
@@ -13,6 +13,7 @@ export function navigateToVerseResource(
   console.log(`Navigating to verse resource: ${verseRef}, type: ${resourceType}`);
   
   // First, set sessionStorage values to communicate between components
+  // Our VerseResourceTabs component will check these values on mount/initialization
   window.sessionStorage.setItem('activeVerseRef', verseRef);
   window.sessionStorage.setItem('activeResourceTab', resourceType);
   
@@ -40,7 +41,11 @@ export function navigateToVerseResource(
     console.log('Clicking verses tab');
     versesTab.click();
     
-    // Allow time for the tab content to render
+    // With our new component approach, we don't need to manually click the resource tab
+    // The VerseResourceTabs component will automatically show the correct tab based on sessionStorage
+    console.log('VerseResourceTabs component will automatically handle tab selection');
+    
+    // Trigger a focus event to help force a re-render in some cases
     setTimeout(() => {
       // Find the verse container by reference
       const verseContainers = document.querySelectorAll('[data-verse-ref]');
@@ -50,45 +55,15 @@ export function navigateToVerseResource(
       
       verseContainers.forEach(container => {
         const containerRef = container.getAttribute('data-verse-ref');
-        console.log(`Container ref: ${containerRef}`);
         if (containerRef === verseRef) {
           verseContainer = container;
           console.log(`Found matching container for verse: ${verseRef}`);
+          
+          // Scroll to the verse container
+          verseContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
       });
-      
-      // If we found the verse container, click the appropriate resource tab
-      if (verseContainer) {
-        // Try multiple selectors for resource tabs
-        const resourceTabSelectors = [
-          `[data-value="${resourceType}"]`,
-          `[value="${resourceType}"]`,
-          `button[value="${resourceType}"]`
-        ];
-        
-        let resourceTab: HTMLElement | null = null;
-        
-        // Type assertion to Element to ensure querySelector exists
-        const verseContainerElement = verseContainer as Element;
-        
-        for (const selector of resourceTabSelectors) {
-          resourceTab = verseContainerElement.querySelector(selector) as HTMLElement | null;
-          if (resourceTab) {
-            console.log(`Found resource tab with selector: ${selector}`);
-            break;
-          }
-        }
-        
-        if (resourceTab) {
-          console.log(`Clicking resource tab: ${resourceType}`);
-          resourceTab.click();
-        } else {
-          console.error(`Could not find resource tab for: ${resourceType}`);
-        }
-      } else {
-        console.error(`Could not find verse container for: ${verseRef}`);
-      }
-    }, 300); // Increased delay to ensure the verses tab content is rendered
+    }, 300);
   }
 }
 

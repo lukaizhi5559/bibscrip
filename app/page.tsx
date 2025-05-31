@@ -11,6 +11,7 @@ import { SendHorizonal, AlertCircle, ChevronLeft, ChevronRight, RefreshCw } from
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useMediaQuery } from "../hooks/use-media-query"
+import { truncateText } from "@/utils/string-helpers"
 
 const mockResponse: ChatResponseData = {
   aiAnswer:
@@ -55,6 +56,17 @@ export default function HomePage() {
   const [dataLoaded, setDataLoaded] = useState(false)
   const [lastQuestion, setLastQuestion] = useState<string | null>(null)
   
+  // Update document title with truncated question when a search is performed
+  useEffect(() => {
+    if (inputValue && dataLoaded) {
+      // Set page title with truncated question (max 50 chars)
+      document.title = truncateText(inputValue, 50) + ' | BibScrip';
+    } else {
+      // Reset to default title when no search is active
+      document.title = 'BibScrip - AI Bible Study';
+    }
+  }, [inputValue, dataLoaded])
+  
   // Check if we're on mobile
   const isMobile = useMediaQuery("(max-width: 768px)")
   
@@ -87,29 +99,50 @@ export default function HomePage() {
     }
   }, [isLoading])
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
     if (!inputValue.trim()) return
-
+    
     // Update the URL with the query parameter
     const params = new URLSearchParams(searchParams.toString())
     params.set('q', inputValue)
     router.push(`/?${params.toString()}`)
     
     setLastQuestion(inputValue)
-    setIsLoading(true)
-    setChatResponse(null)
+    
+    // Reset state
     setError(null)
+    setIsLoading(true)
+    setResultsOpen(true)
+    setChatResponse(null)
     setDataLoaded(false)
     
+    // Create an AbortController for timeout management
+    const controller = new AbortController()
+    const { signal } = controller
+    
+    // Set a timeout to abort the request if it takes too long (20 seconds)
+    const timeoutId = setTimeout(() => {
+      console.log('Request taking too long, aborting to try fallback provider')
+      controller.abort()
+    }, 20000) // 20 seconds timeout
+    
     try {
+      console.log('Making primary API request...')
       const response = await fetch('/api/ask', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ question: inputValue }),
+        body: JSON.stringify({ 
+          question: inputValue,
+          timeoutEnabled: true // Tell backend we're handling timeouts
+        }),
+        signal // Attach the abort signal to the fetch request
       })
+      
+      // Request completed successfully, clear the timeout
+      clearTimeout(timeoutId)
 
       if (!response.ok) {
         const errorData = await response.json()
@@ -131,8 +164,7 @@ export default function HomePage() {
       }
       
       // Debug logging
-      console.log('API Response:', data);
-      console.log('Transformed Response:', chatResponseData);
+      console.log('API Response received successfully')
 
       // Detect content type from the question
       if (inputValue.toLowerCase().includes('topic') || inputValue.toLowerCase().includes('theme')) {
@@ -147,11 +179,79 @@ export default function HomePage() {
       
       // Mark data as loaded
       setDataLoaded(true)
-
       setChatResponse(chatResponseData)
+      
     } catch (err: any) {
-      console.error('Error fetching answer:', err)
-      setError(err.message || 'Failed to get answer. Please try again.')
+      // Clear the timeout to prevent multiple aborts
+      clearTimeout(timeoutId)
+      
+      console.error('Error with primary API request:', err)
+      
+      // Check if the error was due to timeout/abort
+      if (err.name === 'AbortError') {
+        // Show a message indicating we're falling back to another provider
+        setError('The request was taking too long. Automatically trying another AI provider...')
+        
+        // Try the fallback provider
+        try {
+          console.log('Trying fallback provider...')
+          const fallbackResponse = await fetch('/api/ask', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              question: inputValue,
+              useFallback: true // Tell backend to use the next provider in the chain
+            })
+          })
+          
+          if (!fallbackResponse.ok) {
+            throw new Error(`Error with fallback provider: ${fallbackResponse.status}`)
+          }
+          
+          const fallbackData = await fallbackResponse.json()
+          
+          console.log('Fallback response received successfully')
+          
+          // Transform API response to match ChatResponseData format
+          const fallbackChatResponseData: ChatResponseData = {
+            aiAnswer: fallbackData.ai, 
+            referencedVerses: fallbackData.verses.map((verse: {ref: string, text: string, translation?: string, link?: string}) => ({
+              reference: verse.ref,
+              text: verse.text,
+              translation: verse.translation,
+              link: verse.link
+            })),
+            commentaryExcerpts: [] // Initialize with empty array
+          }
+          
+          // Use the same content type detection as primary request
+          if (inputValue.toLowerCase().includes('topic') || inputValue.toLowerCase().includes('theme')) {
+            setDetectedContentType('topic')
+          } else if (inputValue.toLowerCase().includes('character') || inputValue.toLowerCase().includes('person')) {
+            setDetectedContentType('character')
+          } else if (/^\s*[a-zA-Z]+\s+\d+:\d+/.test(inputValue)) {
+            setDetectedContentType('verse')
+          } else {
+            setDetectedContentType('general')
+          }
+          
+          // Mark data as loaded
+          setDataLoaded(true)
+          setChatResponse(fallbackChatResponseData)
+          
+          // Clear the error since we recovered
+          setError(null)
+          
+        } catch (fallbackErr: any) {
+          console.error('Error with fallback provider:', fallbackErr)
+          setError('All AI providers failed to respond. Please try again later.')
+        }
+      } else {
+        // Handle other types of errors
+        setError(err.message || 'Failed to get answer. Please try again.')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -162,10 +262,8 @@ export default function HomePage() {
   }
 
   const placeholderText = `Ask a question or explore Scripture deeply...
-
   Example:
-  What does Romans 8:28 mean?
-  Include related verses and how to apply it today.`;
+  What does Romans 8:28 mean? Include related verses and how to apply it today.`;
 
 
   return (
