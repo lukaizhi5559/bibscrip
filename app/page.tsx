@@ -67,16 +67,12 @@ export default function HomePage() {
     }
   }, [])
   
-  // Effect to open results panel when data is loaded
+  // Always open results panel when loading starts
   useEffect(() => {
-    if (chatResponse && !isLoading && dataLoaded) {
-      // Small delay to ensure data is fully processed
-      const timer = setTimeout(() => {
-        setResultsOpen(true)
-      }, 100)
-      return () => clearTimeout(timer)
+    if (isLoading) {
+      setResultsOpen(true)
     }
-  }, [chatResponse, isLoading, dataLoaded])
+  }, [isLoading])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -177,15 +173,32 @@ export default function HomePage() {
               Ask
             </Button>
           </form>
-          <p className="mt-3 text-xs text-muted-foreground">
-            BibScrip provides responses based on Scripture and trusted commentary.
-          </p>
-
-          {isLoading && (
-            <div className="mt-12 flex justify-center">
-              <AiTypingIndicator />
-            </div>
-          )}
+          <div className="mt-3 flex justify-between items-center">
+            <p className="text-xs text-muted-foreground">
+              BibScrip provides responses based on Scripture and trusted commentary.
+            </p>
+            
+            {/* Always visible toggle button */}
+            <Button 
+              variant="outline" 
+              size="sm"
+              className="flex items-center gap-1" 
+              onClick={toggleResults}
+            >
+              {resultsOpen ? 
+                <>
+                  <ChevronRight className="h-4 w-4" />
+                  Hide Panel
+                </> : 
+                <>
+                  <ChevronLeft className="h-4 w-4" />
+                  {chatResponse || isLoading ? 
+                    `View ${isLoading ? 'Progress' : 'Results'}` : 
+                    'Side Panel'}
+                </>
+              }
+            </Button>
+          </div>
 
           {error && !isLoading && (
             <div className="mt-12">
@@ -198,20 +211,6 @@ export default function HomePage() {
               </Alert>
             </div>
           )}
-          
-          {/* Re-open button to show when results are closed and data is available */}
-          {!resultsOpen && chatResponse && lastQuestion && !isLoading && (
-            <div className="mt-8">
-              <Button 
-                variant="outline" 
-                className="flex items-center gap-2" 
-                onClick={toggleResults}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                View results for "{lastQuestion.length > 25 ? `${lastQuestion.substring(0, 25)}...` : lastQuestion}"
-              </Button>
-            </div>
-          )}
         </section>
       </div>
 
@@ -220,53 +219,63 @@ export default function HomePage() {
         className={`${isMobile ? 'fixed top-0 right-0 z-50' : 'relative'} h-full bg-background border-l border-border overflow-y-auto transition-all duration-300 ease-in-out
           ${resultsOpen 
             ? (isMobile ? 'translate-x-0 w-full' : 'w-2/3 translate-x-0') 
-            : (isMobile ? 'translate-x-full' : 'w-0 opacity-0 invisible')
-          }`}
+            : (isMobile ? 'translate-x-full' : 'w-0 opacity-0 invisible')}`}
       >
-        {chatResponse && (
-          <div className="relative h-full">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="absolute top-4 left-4 z-50" 
-              onClick={toggleResults}
-              aria-label={resultsOpen ? "Close results" : "Open results"}
-            >
-              {resultsOpen ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
-            </Button>
+        <div className="relative h-full">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="absolute top-4 left-4 z-50" 
+            onClick={toggleResults}
+            aria-label={resultsOpen ? "Close results" : "Open results"}
+          >
+            {resultsOpen ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
+          </Button>
 
-            <div className="p-4 h-full overflow-y-auto">
-              {/* Show loading spinner inside the panel while data is loading */}
-              {isLoading ? (
-                <div className="flex flex-col items-center justify-center h-full">
-                  <RefreshCw className="h-8 w-8 animate-spin text-primary mb-4" />
-                  <p className="text-muted-foreground">Loading your results...</p>
+          <div className="p-4 h-full overflow-y-auto">
+            {/* Show loading spinner inside the panel while data is loading */}
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center h-full">
+                <div className="flex flex-col items-center justify-center space-y-4">
+                  <AiTypingIndicator />
+                  <p className="text-muted-foreground mt-4">Searching the Bible and analyzing your question...</p>
                 </div>
-              ) : (
-                <ResultsLayout 
-                  question={lastQuestion || inputValue}
-                  aiResponse={chatResponse.aiAnswer}
-                  verses={chatResponse.referencedVerses.map(verse => ({
-                    // ResultsLayout expects 'ref' according to its BibleVerse interface
-                    ref: verse.reference, // Use the transformed 'reference' property
-                    text: verse.text,
-                    translation: verse.translation || 'Unknown',
-                    link: verse.link || '#',
-                    source: 'Bible API'
-                  }))}
-                  loading={isLoading}
-                  detectedContentType={detectedContentType}
-                  onSave={() => alert('Bookmark feature coming soon!')}
-                  onShare={() => {
-                    const url = `${window.location.origin}?q=${encodeURIComponent(lastQuestion || inputValue)}`
-                    navigator.clipboard.writeText(url)
-                    alert('Link copied to clipboard!')
-                  }}
-                />
-              )}
-            </div>
+              </div>
+            ) : chatResponse ? (
+              <ResultsLayout 
+                question={lastQuestion || inputValue}
+                aiResponse={chatResponse.aiAnswer}
+                verses={chatResponse.referencedVerses.map(verse => ({
+                  // ResultsLayout expects 'ref' according to its BibleVerse interface
+                  ref: verse.reference, // Use the transformed 'reference' property
+                  text: verse.text,
+                  translation: verse.translation || 'Unknown',
+                  link: verse.link || '#',
+                  source: 'Bible API'
+                }))}
+                loading={isLoading}
+                detectedContentType={detectedContentType}
+                onSave={() => alert('Bookmark feature coming soon!')}
+                onShare={() => {
+                  const url = `${window.location.origin}?q=${encodeURIComponent(lastQuestion || inputValue)}`
+                  navigator.clipboard.writeText(url)
+                  alert('Link copied to clipboard!')
+                }}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <div className="max-w-md space-y-4">
+                  <h3 className="text-xl font-medium">Welcome to BibScrip</h3>
+                  <p className="text-muted-foreground">Enter a question about the Bible, scripture, or faith to see AI-powered answers with referenced verses.</p>
+                  <div className="p-4 border border-dashed rounded-lg border-muted-foreground/50">
+                    <p className="italic text-sm">"Thy word is a lamp unto my feet, and a light unto my path."</p>
+                    <p className="text-xs text-muted-foreground mt-2">Psalm 119:105</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   )
