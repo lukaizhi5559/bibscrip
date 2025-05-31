@@ -1,0 +1,183 @@
+// /Users/lukaizhi/Desktop/projects/bibscrip-app/utils/ai.ts
+import { Anthropic } from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
+
+// Ensure API keys are set in your .env.local file
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
+// Mistral API will be accessed directly via fetch // e.g., "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
+
+async function askOpenAI(question: string): Promise<string | null> {
+  console.log('Attempting OpenAI...');
+  try {
+    // Try GPT-4 Turbo first
+    try {
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4-turbo',
+        messages: [{ role: 'user', content: question }],
+      });
+      const response = completion.choices[0]?.message?.content;
+      if (response) {
+        console.log('OpenAI (GPT-4 Turbo) success.');
+        return response;
+      }
+    } catch (gpt4Error: any) {
+      console.warn('OpenAI (GPT-4 Turbo) failed:', gpt4Error.message);
+      // Only re-throw if it's a rate limit or server error to trigger outer fallback
+      if (gpt4Error.status === 429 || (gpt4Error.status >= 500 && gpt4Error.status < 600)) {
+        throw gpt4Error;
+      }
+      // Otherwise, try GPT-3.5 Turbo as an internal OpenAI fallback
+      console.log('Falling back to OpenAI (GPT-3.5 Turbo)...');
+    }
+
+    // Fallback to GPT-3.5 Turbo
+    const completion35 = await openai.chat.completions.create({
+      model: 'gpt-3.5-turbo',
+      messages: [{ role: 'user', content: question }],
+    });
+    const response35 = completion35.choices[0]?.message?.content;
+    if (response35) {
+      console.log('OpenAI (GPT-3.5 Turbo) success.');
+      return response35;
+    }
+    return null; // Should not happen if models are available and no critical error
+  } catch (error: any) {
+    console.error('OpenAI API critical error:', error.message);
+    // Re-throw only for errors that should trigger a fallback to the next provider
+    if (error.status === 429 || (error.status >= 500 && error.status < 600)) {
+      throw error;
+    }
+    return null; // For other OpenAI errors, don't fallback immediately
+  }
+}
+
+async function askClaude(question: string): Promise<string | null> {
+  console.log('Attempting Claude...');
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.warn('Anthropic API key not configured. Skipping Claude.');
+    return null;
+  }
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-3-opus-20240229', // Or claude-3-sonnet or claude-3-haiku
+      max_tokens: 2000, // Adjust as needed
+      messages: [{ role: 'user', content: question }],
+    });
+    const claudeResponse = response.content[0]?.type === 'text' ? response.content[0].text : null;
+    if (claudeResponse) {
+      console.log('Claude success.');
+      return claudeResponse;
+    }
+    return null;
+  } catch (error: any) {
+    console.error('Claude API error:', error.message);
+    if (error.status === 429 || (error.status >= 500 && error.status < 600)) {
+      throw error; // Re-throw to trigger fallback
+    }
+    return null;
+  }
+}
+
+async function askMistral(question: string): Promise<string | null> {
+  console.log('Attempting Mistral...');
+
+  if (!process.env.MISTRAL_API_KEY) {
+    console.warn('Mistral API key not configured. Skipping Mistral.');
+    return null;
+  }
+
+  try {
+    // Mistral-large is their most capable model as of mid-2024
+    // Other options include: mistral-medium, mistral-small, mistral-tiny, open-mistral-7b
+    const model = 'mistral-large-latest';
+    
+    console.log(`Sending to Mistral model: ${model}`);
+    
+    const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.MISTRAL_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: [{ role: 'user', content: question }],
+        max_tokens: 2000,
+        temperature: 0.7,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Mistral API error: ${response.status} ${response.statusText}`, errorText);
+      // Re-throw for critical errors that should trigger fallback
+      if (response.status === 429 || (response.status >= 500 && response.status < 600)) {
+        throw new Error(`Mistral API critical error: ${response.status}`);
+      }
+      return null;
+    }
+
+    const data = await response.json();
+    const mistralResponseText = data.choices?.[0]?.message?.content;
+    
+    if (mistralResponseText) {
+      console.log('Mistral success.');
+      return mistralResponseText.trim();
+    }
+    console.warn('Mistral response did not contain expected content:', data);
+    return null;
+  } catch (error: any) {
+    console.error('Mistral API request failed:', error.message);
+    
+    // Re-throw specific errors that should trigger fallback
+    if (error.status === 429 || (error.status >= 500 && error.status < 600) || 
+        error.message.includes('rate limit') || error.message.includes('timeout')) {
+      throw new Error(`Mistral API critical error: ${error.message}`);
+    }
+    
+    return null; // For other errors, don't trigger fallback
+  }
+}
+
+/**
+ * Gets an AI response to a question using a fallback chain: OpenAI -> Mistral -> Claude.
+ * @param question The user's question.
+ * @returns A Promise resolving to the AI's answer string, or a default message if all fail.
+ */
+export async function getAIResponse(question: string): Promise<string> {
+  // 1. Try OpenAI
+  try {
+    const openaiResponse = await askOpenAI(question);
+    if (openaiResponse) return openaiResponse;
+    console.log('OpenAI did not return a response or failed non-critically, trying Mistral...');
+  } catch (openaiError: any) {
+    console.warn(`OpenAI critical failure (${(openaiError as Error).message}), trying Mistral...`);
+  }
+
+  // 2. Try Mistral
+  try {
+    const mistralResponse = await askMistral(question);
+    if (mistralResponse) return mistralResponse;
+    console.log('Mistral did not return a response or failed non-critically, trying Claude...');
+  } catch (mistralError: any) {
+    console.warn(`Mistral critical failure (${(mistralError as Error).message}), trying Claude...`);
+  }
+
+  // 3. Try Claude
+  try {
+    const claudeResponse = await askClaude(question);
+    if (claudeResponse) return claudeResponse;
+  } catch (claudeError: any) {
+    console.warn(`Claude critical failure (${(claudeError as Error).message}). All providers attempted.`);
+  }
+
+  console.error('All AI providers failed to generate a response after attempting OpenAI -> Mistral -> Claude.');
+  return 'Sorry, I was unable to process your request with any of our AI providers at the moment. Please try again later.';
+}
