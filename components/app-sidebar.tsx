@@ -68,11 +68,11 @@ export function AppSidebar() {
 
           {/* When expanded and mobile, logo left, close button right (standard sheet behavior) */}
           {sidebarState === "expanded" && isMobile && (
-            <>
+            <> 
               <Link href="/" aria-label="BibScrip Home" className="mr-auto">
                 <BibScripLogo size="md" />
               </Link>
-              <SidebarClose />
+              {/* <SidebarClose /> Removed: SheetContent provides its own close button */}
             </>
           )}
 

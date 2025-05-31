@@ -14,7 +14,7 @@ export function BibScripLogo({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
         className={`${currentSize.iconSize} text-primary dark:text-primary shrink-0`}
         // fill="currentColor" // Use fill if the SVG is designed for it, otherwise stroke
       />
-      <span className={`font-semibold ${currentSize.textSize} text-foreground`}>BibScrip</span>
+      {/* <span className={`font-semibold ${currentSize.textSize} text-foreground`}>BibScrip</span> */}
     </div>
   )
 }

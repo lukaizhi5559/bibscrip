@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { type VariantProps, cva } from "class-variance-authority"
-import { PanelLeft, ChevronDown, X } from "lucide-react" // Added MenuIconLucide for potential use
+import { PanelLeft, ChevronDown, X, ChevronLeft, ChevronRight } from "lucide-react" // Added MenuIconLucide for potential use
 
 import { useMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
@@ -207,7 +207,6 @@ export const Sidebar = React.forwardRef<
           className="w-[--sidebar-width-mobile] bg-sidebar p-0 text-sidebar-foreground border-none shadow-xl"
           style={{ "--sidebar-width": SIDEBAR_WIDTH_MOBILE } as React.CSSProperties}
           side={side}
-          closeIcon={<X className="h-5 w-5" />}
         >
           <div className="flex h-full w-full flex-col">{children}</div>
         </SheetContent>
@@ -251,7 +250,7 @@ Sidebar.displayName = "Sidebar"
 
 export const SidebarTrigger = React.forwardRef<React.ElementRef<typeof Button>, React.ComponentProps<typeof Button>>(
   ({ className, onClick, ...props }, ref) => {
-    const { toggleSidebar, isMobile, openMobile } = useSidebar()
+    const { isMobile, toggleSidebar, state, isLoading, openMobile } = useSidebar()
 
     // This trigger is now only for mobile
     if (!isMobile) return null
@@ -271,8 +270,8 @@ export const SidebarTrigger = React.forwardRef<React.ElementRef<typeof Button>, 
         aria-controls="mobile-sidebar"
         {...props}
       >
-        <PanelLeft className="h-5 w-5" />
-        <span className="sr-only">Toggle Sidebar</span>
+        {state === "expanded" ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+        <span className="sr-only">{state === "expanded" ? "Collapse Sidebar" : "Expand Sidebar"}</span>
       </Button>
     )
   },
@@ -458,7 +457,7 @@ export const SidebarMenuButton = React.forwardRef<
 
     const content = children || (
       <>
-        {icon && React.cloneElement(icon as React.ReactElement, { className: "h-4 w-4 shrink-0" })}
+        {React.isValidElement(icon) && React.cloneElement(icon, { ...(icon.props as any), className: cn((icon.props as any)?.className, "h-4 w-4 shrink-0") })}
         {sidebarState === "expanded" && label && <span className="truncate flex-grow">{label}</span>}
       </>
     )
@@ -589,7 +588,7 @@ export const SidebarInset = React.forwardRef<HTMLDivElement, React.ComponentProp
     return (
       <main
         ref={ref}
-        className={cn("flex-1 transition-[margin-left] duration-200 ease-linear", marginLeftClass, className)}
+        className={cn("flex-1 transition-[margin-left] duration-200 ease-linear", className)}
         {...props}
       />
     )

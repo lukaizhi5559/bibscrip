@@ -17,12 +17,12 @@ export const metadata: Metadata = {
     generator: 'v0.dev'
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const defaultSidebarOpen = cookieStore.get(process.env.SIDEBAR_COOKIE_NAME || "sidebar:state")?.value !== "false"
 
   return (
@@ -30,7 +30,7 @@ export default function RootLayout({
       <body>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <SidebarProvider defaultOpen={defaultSidebarOpen}>
-            <div className="flex min-h-screen bg-background">
+            <div className="flex min-h-screen bg-background w-full">
               <AppSidebar />
               <SidebarInset>
                 {" "}
