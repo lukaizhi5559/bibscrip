@@ -1,6 +1,8 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ExternalLink } from 'lucide-react';
+import { parsePassage, getBookCode, formatPassageForUrl, getBLBCode } from '@/utils/biblical-helpers';
+import { setActiveMainTab, navigateToVerseResource } from '@/utils/navigation-helpers';
 
 interface ReferenceLinksProps {
   passage: string;
@@ -29,6 +31,32 @@ export function ReferenceLinks({
     
   // Parse the passage to handle the various URL formats
   const formattedPassage = formatPassageForUrl(passage || 'John 3:16');
+  
+  // Navigate to the Bible Verses tab and trigger click on the appropriate resource tab
+  const navigateToResource = (resourceType: 'biblegateway' | 'biblehub' | 'blueletterbible') => {
+    // Use the improved navigation helper function
+    navigateToVerseResource(passage, resourceType);
+    
+    // Optional: analytics tracking
+    try {
+      console.log(`Resource selected: ${resourceType}, Passage: ${passage}`);
+    } catch (error) {
+      console.error('Analytics error:', error);
+    }
+  };
+  
+  // Function to open external link in new tab
+  const openExternalLink = (url: string) => {
+    window.open(url, '_blank');
+    
+    // Optional: analytics tracking
+    try {
+      console.log(`External link opened: ${url}, Passage: ${passage}`);
+    } catch (error) {
+      console.error('Analytics error:', error);
+    }
+  };
+  
   
   // Map translation codes to their proper values for different Bible sites
   const getTranslationCode = (translation: string, site: 'biblegateway' | 'biblehub' | 'blueletterbible'): string => {
@@ -121,18 +149,30 @@ export function ReferenceLinks({
   const passageToUse = linkParams.search || passage || 'John 3:16';
   const { book, chapter, verse } = parsePassage(passageToUse);
 
+  // Generate URLs for resources
+  // For Bible Gateway
+  const bibleGatewayUrl = bibleGatewayLink || `https://www.biblegateway.com/passage/?search=${linkParams.search}&version=${linkParams.version}`;
+  
+  // For Bible Hub
+  const bibleHubUrl = verse 
+    ? `https://biblehub.com/${book.toLowerCase()}/${chapter}-${verse}.htm` 
+    : `https://biblehub.com/${book.toLowerCase()}/${chapter}.htm`;
+  
+  // For Blue Letter Bible
+  const blueLetterBibleUrl = `https://www.blueletterbible.org/${getTranslationCode(safeTranslations[0] || 'niv', 'blueletterbible')}/${getBookCode(book)}/${chapter}/${verse || '1'}/s_${getBLBCode(book, chapter, verse)}`;
+  
   return (
     <div className="flex flex-wrap gap-2 mt-2">
+      {/* Navigation buttons that open Bible Verses tab with the appropriate resource selected */}
       {showBibleGateway && (
         <Button 
           variant="outline" 
-          size="sm"
-          onClick={() => window.open(bibleGatewayLink || `https://www.biblegateway.com/passage/?search=${linkParams.search}&version=${linkParams.version}`, '_blank')}
-          className="flex items-center gap-1 text-sm"
-          aria-label={`Open ${passage} on Bible Gateway`}
+          size="sm" 
+          className="text-xs h-7 px-2 py-1"
+          title="View in BibleGateway"
+          onClick={() => navigateToResource('biblegateway')}
         >
           <span className="mr-1">📘</span> BibleGateway
-          <ExternalLink className="h-3 w-3 ml-1" />
         </Button>
       )}
       
@@ -140,16 +180,11 @@ export function ReferenceLinks({
         <Button 
           variant="outline" 
           size="sm"
-          onClick={() => window.open(
-            verse 
-              ? `https://biblehub.com/${book.toLowerCase()}/${chapter}-${verse}.htm` 
-              : `https://biblehub.com/${book.toLowerCase()}/${chapter}.htm`,
-            '_blank'
-          )}
-          className="flex items-center gap-1 text-sm"
+          className="text-xs h-7 px-2 py-1"
+          title="View in BibleHub"
+          onClick={() => navigateToResource('biblehub')}
         >
           <span className="mr-1">🔍</span> BibleHub
-          <ExternalLink className="h-3 w-3 ml-1" />
         </Button>
       )}
       
@@ -157,27 +192,62 @@ export function ReferenceLinks({
         <Button 
           variant="outline" 
           size="sm"
-          onClick={() => window.open(
-            `https://www.blueletterbible.org/${getTranslationCode(safeTranslations[0] || 'niv', 'blueletterbible')}/${getBookCode(book)}/${chapter}/${verse || '1'}/s_${getBLBCode(book, chapter, verse)}`,
-            '_blank'
-          )}
-          className="flex items-center gap-1 text-sm"
+          className="text-xs h-7 px-2 py-1"
+          title="View in BlueLetterBible"
+          onClick={() => navigateToResource('blueletterbible')}
         >
-          <span className="mr-1">🧠</span> BlueLetterBible
-          <ExternalLink className="h-3 w-3 ml-1" />
+          <span className="mr-1">📖</span> BlueLetterBible
         </Button>
       )}
       
-      {/* Multi-translation comparison button - only show if multiple translations */}
+      {/* External links to open in new tab */}
+      <div className="flex flex-wrap gap-2 mt-2 ml-auto">
+        {showBibleGateway && (
+          <Button 
+            variant="ghost" 
+            size="sm"
+            className="text-xs h-7 px-2 py-1"
+            title="Open in new tab"
+            onClick={() => openExternalLink(bibleGatewayUrl)}
+          >
+            <ExternalLink className="h-3 w-3 mr-1" /> BG
+          </Button>
+        )}
+        
+        {showBibleHub && book && chapter && (
+          <Button 
+            variant="ghost" 
+            size="sm"
+            className="text-xs h-7 px-2 py-1"
+            title="Open in new tab"
+            onClick={() => openExternalLink(bibleHubUrl)}
+          >
+            <ExternalLink className="h-3 w-3 mr-1" /> BH
+          </Button>
+        )}
+        
+        {showBlueLetterBible && book && chapter && (
+          <Button 
+            variant="ghost" 
+            size="sm"
+            className="text-xs h-7 px-2 py-1"
+            title="Open in new tab"
+            onClick={() => openExternalLink(blueLetterBibleUrl)}
+          >
+            <ExternalLink className="h-3 w-3 mr-1" /> BLB
+          </Button>
+        )}
+      </div>
+      
+      {/* Multi-translation comparison button */}
       {safeTranslations.length > 1 && (
         <Button 
           variant="outline" 
           size="sm"
-          onClick={() => window.open(
-            `https://www.biblegateway.com/passage/?search=${linkParams.search}&version=${safeTranslations.map(t => getTranslationCode(t, 'biblegateway')).join('%2C')}`, 
-            '_blank'
+          onClick={() => openExternalLink(
+            `https://www.biblegateway.com/passage/?search=${linkParams.search}&version=${safeTranslations.map(t => getTranslationCode(t, 'biblegateway')).join('%2C')}`
           )}
-          className="flex items-center gap-1 text-sm"
+          className="flex items-center gap-1 text-xs h-7 px-2 py-1 mt-2"
         >
           <span className="mr-1">📊</span> Compare Translations
           <ExternalLink className="h-3 w-3 ml-1" />
@@ -187,108 +257,4 @@ export function ReferenceLinks({
   );
 }
 
-/**
- * Format a passage for use in URLs
- */
-function formatPassageForUrl(passage: string): string {
-  // Replace spaces with plus signs for URL encoding
-  return encodeURIComponent(passage.trim());
-}
-
-/**
- * Parse a passage into its components
- */
-function parsePassage(passage?: string): { book: string; chapter: string; verse?: string } {
-  // Handle undefined or empty passage
-  if (!passage) {
-    return { book: 'john', chapter: '3', verse: '16' }; // Default to John 3:16
-  }
-
-  console.log('Parsing passage:', passage);
-  
-  // Handle basic format like "John 3:16" or "Romans 8:28-30"
-  const parts = passage.trim().split(' ');
-  let book = parts[0] || 'john';
-  let remainingParts = [...parts];
-  
-  // Handle books with spaces like "1 Corinthians"
-  if (parts.length > 1 && /^[123]$/.test(parts[0])) {
-    book = `${parts[0]} ${parts[1]}`;
-    remainingParts = parts.slice(2);
-  } else {
-    remainingParts = parts.slice(1);
-  }
-  
-  // Handle case when there's just a chapter number with no verse (e.g., 'Romans 2')
-  if (remainingParts.length === 0) {
-    return { book, chapter: '1' };
-  }
-  
-  // Get the first part after the book name
-  const chapterPart = remainingParts[0];
-  
-  // Check if it has a colon (indicating chapter:verse format)
-  if (chapterPart.includes(':')) {
-    const chapterVerse = chapterPart.split(':');
-    const chapter = chapterVerse[0];
-    const verse = chapterVerse.length > 1 ? chapterVerse[1].split('-')[0].split(',')[0] : undefined;
-    return { book, chapter, verse };
-  } else {
-    // Just a chapter number with no verse (e.g., 'Romans 2')
-    return { book, chapter: chapterPart };
-  }
-  
-  // Default fallback should never be reached with the above conditions
-  return { book, chapter: '1' };
-}
-
-/**
- * Get the book code for BlueLetterBible
- */
-function getBookCode(book: string): string {
-  // Simplified version - in a real app, you'd have a full mapping
-  const bookMap: Record<string, string> = {
-    'genesis': 'gen', 'exodus': 'exo', 'leviticus': 'lev', 'numbers': 'num',
-    'deuteronomy': 'deu', 'joshua': 'jos', 'judges': 'jdg', 'ruth': 'rth',
-    '1samuel': '1sa', '2samuel': '2sa', '1kings': '1ki', '2kings': '2ki',
-    '1chronicles': '1ch', '2chronicles': '2ch', 'ezra': 'ezr', 'nehemiah': 'neh',
-    'esther': 'est', 'job': 'job', 'psalms': 'psa', 'psalm': 'psa', 'proverbs': 'pro', 
-    'ecclesiastes': 'ecc', 'songofsolomon': 'sng', 'isaiah': 'isa', 'jeremiah': 'jer',
-    'lamentations': 'lam', 'ezekiel': 'eze', 'daniel': 'dan', 'hosea': 'hos',
-    'joel': 'joe', 'amos': 'amo', 'obadiah': 'oba', 'jonah': 'jon', 'micah': 'mic',
-    'nahum': 'nah', 'habakkuk': 'hab', 'zephaniah': 'zep', 'haggai': 'hag',
-    'zechariah': 'zec', 'malachi': 'mal', 'matthew': 'mat', 'mark': 'mar',
-    'luke': 'luk', 'john': 'jhn', 'acts': 'act', 'romans': 'rom',
-    '1corinthians': '1co', '2corinthians': '2co', 'galatians': 'gal', 'ephesians': 'eph',
-    'philippians': 'php', 'colossians': 'col', '1thessalonians': '1th', '2thessalonians': '2th',
-    '1timothy': '1ti', '2timothy': '2ti', 'titus': 'tit', 'philemon': 'phm',
-    'hebrews': 'heb', 'james': 'jas', '1peter': '1pe', '2peter': '2pe',
-    '1john': '1jn', '2john': '2jn', '3john': '3jn', 'jude': 'jud',
-    'revelation': 'rev'
-  };
-  
-  // Normalize the book name: remove spaces and make lowercase
-  const normalizedBook = book.toLowerCase().replace(/\s+/g, '');
-  return bookMap[normalizedBook] || normalizedBook.substring(0, 3);
-}
-
-/**
- * Get the chapter-verse code for BlueLetterBible URLs
- * This is a simplified version and would need a proper implementation
- */
-function getBLBCode(book: string, chapter: string, verse?: string): string {
-  // This is a simplified placeholder - real implementation would need to calculate the actual codes
-  // BlueLetterBible uses specific codes for each book+chapter combination
-  const bookCodes: Record<string, number> = {
-    'genesis': 1, 'exodus': 54, 'leviticus': 96, 'numbers': 127,
-    'deuteronomy': 170, 'joshua': 211, 'judges': 237, 'ruth': 258,
-    'john': 1039, 'romans': 1057
-  };
-  
-  const normalizedBook = book.toLowerCase().replace(/\s+/g, '');
-  const bookCode = bookCodes[normalizedBook] || 1000;
-  const chapterNum = parseInt(chapter, 10) || 1;
-  
-  // Simplified calculation - real implementation would use actual BLB codes
-  return `${bookCode + chapterNum}${verse || '001'}`;
-}
+// All helper functions are now imported from @/utils/biblical-helpers
