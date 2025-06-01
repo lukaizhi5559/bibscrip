@@ -5,7 +5,8 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AppHeader } from "@/components/app-header"
 import { AppFooter } from "@/components/app-footer"
-import { AppSidebar } from "@/components/app-sidebar"
+import { SidebarController } from "@/components/sidebar-controller"
+import { ChatHistoryProvider } from "@/contexts/chat-history-context"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { cookies } from "next/headers"
 
@@ -29,10 +30,11 @@ export default async function RootLayout({
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <body>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <SidebarProvider defaultOpen={defaultSidebarOpen}>
-            <div className="bg-background w-full h-screen overflow-hidden">
-              <AppSidebar />
-              <SidebarInset>
+          <ChatHistoryProvider>
+            <SidebarProvider defaultOpen={defaultSidebarOpen}>
+              <div className="bg-background w-full h-screen overflow-hidden">
+                <SidebarController />
+                <SidebarInset>
                 {" "}
                 {/* This component has flex-1 and adjusts its margin-left */}
                 <div className="flex flex-col h-screen w-full">
@@ -51,8 +53,9 @@ export default async function RootLayout({
                   </main> {/* AppFooter uses its own internal 'container' to center its content */}
                 </div>
               </SidebarInset>
-            </div>
-          </SidebarProvider>
+              </div>
+            </SidebarProvider>
+          </ChatHistoryProvider>
         </ThemeProvider>
       </body>
     </html>

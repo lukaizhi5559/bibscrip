@@ -28,6 +28,8 @@ import {
   PanelLeftOpen,
   PanelRightOpen,
 } from "lucide-react"
+import { HistorySidebar } from "@/components/history/history-sidebar"
+import { useChatHistoryContext } from "@/contexts/chat-history-context"
 
 const mainMenuItems = [
   { label: "Recent Chats", icon: <History />, href: "#recent", disabled: true, tooltip: "Recent Chats" },
@@ -40,8 +42,27 @@ const secondaryMenuItems = [
   { label: "Profile", icon: <UserCircle2 />, href: "#profile", disabled: true, tooltip: "Profile" },
 ]
 
-export function AppSidebar() {
-  const { state: sidebarState, setOpenMobile, toggleSidebar, open, isMobile } = useSidebar()
+export function AppSidebar({
+  isMobile,
+  openMobile,
+  setOpenMobile,
+  onNewChat, // Add a prop for the New Chat handler
+}: {
+  isMobile?: boolean
+  openMobile?: boolean
+  setOpenMobile?: (open: boolean) => void
+  onNewChat?: () => void // Function to create a completely new chat
+}) {
+  const { state: sidebarState, setOpen, toggleSidebar, open: sidebarOpen } = useSidebar()
+  const {
+    sessions,
+    activeSessionId,
+    createSession,
+    switchSession,
+    updateSessionTitle,
+    deleteSession,
+    clearAllSessions
+  } = useChatHistoryContext()
 
   return (
     <Sidebar collapsible="icon" side="left" variant="sidebar">
@@ -94,85 +115,84 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              icon={<PlusCircle />}
-              label="New Chat"
-              tooltip="Start a New Chat"
-              className="bg-primary/10 text-primary hover:bg-primary/20 data-[active=true]:bg-primary/20 font-medium"
-              onClick={() => {
-                if (isMobile && sidebarState === "expanded") setOpenMobile(false)
-                alert("New Chat clicked!")
-              }}
-            />
-          </SidebarMenuItem>
-        </SidebarMenu>
-
-        <SidebarSeparator className="my-3" />
-
-        <SidebarGroup label={sidebarState === "expanded" ? "History" : undefined} className="overflow-y-auto">
+      {sidebarState === "expanded" ? (
+        // Only show history when sidebar is expanded
+        <HistorySidebar
+          sessions={sessions}
+          activeSessionId={activeSessionId}
+          onCreateSession={() => {
+            // Use the parent component's onNewChat function if available
+            if (onNewChat) {
+              onNewChat()
+            } else {
+              // Fallback to just creating a session
+              createSession()
+            }
+            
+            // Close sidebar on mobile after creating session
+            if (isMobile && setOpenMobile) setOpenMobile(false)
+          }}
+          onSwitchSession={(sessionId) => {
+            switchSession(sessionId)
+            if (isMobile) setOpenMobile(false)
+          }}
+          onUpdateSessionTitle={updateSessionTitle}
+          onDeleteSession={deleteSession}
+          onClearAllSessions={clearAllSessions}
+        />
+      ) : (
+        // When collapsed, show just the new chat button
+        <SidebarContent>
           <SidebarMenu>
-            {mainMenuItems.map((item) => (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                icon={<PlusCircle />}
+                tooltip="New Chat"
+                onClick={() => {
+                  // Use the parent component's onNewChat function if available
+                  if (onNewChat) {
+                    onNewChat()
+                  } else {
+                    // Fallback to just creating a session
+                    createSession()
+                  }
+                  toggleSidebar()
+                }}
+              />
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                icon={<History />}
+                tooltip="Chat History"
+                onClick={toggleSidebar}
+              />
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarContent>
+      )}
+
+      {sidebarState === "expanded" && (
+        <SidebarFooter>
+          <SidebarMenu>
+            {secondaryMenuItems.map((item) => (
               <SidebarMenuItem key={item.label}>
                 <SidebarMenuButton
-                  asChild={!item.disabled && !item.badge}
+                  asChild={!item.disabled}
                   icon={item.icon}
-                  label={
-                    <span className="flex items-center justify-between w-full">
-                      {item.label}
-                      {item.badge && sidebarState === "expanded" && (
-                        <Badge variant="secondary" className="ml-auto h-5 text-xs">
-                          {item.badge}
-                        </Badge>
-                      )}
-                    </span>
-                  }
+                  label={item.label}
                   tooltip={item.tooltip}
-                  isActive={false}
-                  disabled={item.disabled || !!item.badge}
+                  disabled={item.disabled}
                   onClick={() => {
-                    if (isMobile && sidebarState === "expanded" && !item.disabled && !item.badge) setOpenMobile(false)
+                    if (isMobile && !item.disabled) setOpenMobile(false)
                   }}
                 >
-                  {!item.disabled && !item.badge ? <Link href={item.href} /> : <span className="w-full" />}
+                  {!item.disabled ? <Link href={item.href} /> : <span className="w-full" />}
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
           </SidebarMenu>
-        </SidebarGroup>
-      </SidebarContent>
-
-      <SidebarFooter>
-        <SidebarMenu>
-          {secondaryMenuItems.map((item) => (
-            <SidebarMenuItem key={item.label}>
-              <SidebarMenuButton
-                asChild={!item.disabled}
-                icon={item.icon}
-                label={item.label}
-                tooltip={item.tooltip}
-                disabled={item.disabled}
-                onClick={() => {
-                  if (isMobile && sidebarState === "expanded" && !item.disabled) setOpenMobile(false)
-                }}
-              >
-                {!item.disabled ? <Link href={item.href} /> : <span className="w-full" />}
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-          {/* <SidebarSeparator className="my-1" />
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              icon={<LogOut />}
-              label="Logout"
-              tooltip="Logout"
-              onClick={() => alert("Logout clicked!")}
-            />
-          </SidebarMenuItem> */}
-        </SidebarMenu>
-      </SidebarFooter>
+        </SidebarFooter>
+      )}
     </Sidebar>
   )
 }

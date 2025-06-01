@@ -12,6 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useMediaQuery } from "../hooks/use-media-query"
 import { truncateText } from "@/utils/string-helpers"
+import { useChatHistoryContext } from "@/contexts/chat-history-context"
 
 const mockResponse: ChatResponseData = {
   aiAnswer:
@@ -45,6 +46,16 @@ const mockResponse: ChatResponseData = {
 export default function HomePage() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  
+  // Initialize chat history from shared context
+  const {
+    sessions,
+    activeSessionId,
+    activeSession,
+    createSession,
+    addMessage,
+    switchSession
+  } = useChatHistoryContext()
   
   const [inputValue, setInputValue] = useState<string>("")
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -81,15 +92,51 @@ export default function HomePage() {
     }
   }, [inputValue])
 
-  // Check for query parameter on load
+  // Handle active session changes
+  useEffect(() => {
+    // If session exists and has messages, load the most recent one
+    if (activeSession && activeSession.messages.length > 0) {
+      const activeMessage = activeSession.messages[0] // Get the most recent message
+      setInputValue(activeMessage.question)
+      setLastQuestion(activeMessage.question)
+      setChatResponse(activeMessage.response)
+      setDataLoaded(true)
+      setResultsOpen(true)
+      
+      // Update URL with the query parameter
+      const params = new URLSearchParams(searchParams.toString())
+      params.set('q', activeMessage.question)
+      router.push(`?${params.toString()}`)
+    } else if (activeSession && activeSession.messages.length === 0) {
+      // Clear UI for a new empty session
+      setInputValue('')
+      setLastQuestion(null)
+      setChatResponse(null)
+      setDataLoaded(false)
+      setError(null)
+      
+      // Clear URL parameters
+      const params = new URLSearchParams(searchParams.toString())
+      params.delete('q')
+      router.push(`?${params.toString()}`)
+      
+      // Reset document title
+      document.title = 'BibScrip - AI Bible Study'
+    }
+  }, [activeSessionId, activeSession, searchParams, router])
+
+  // Check for query parameter on initial load only
   useEffect(() => {
     const q = searchParams.get('q')
     if (q) {
       setInputValue(q)
-      setLastQuestion(q)
-      // Auto-submit the query when loaded with a query parameter
-      handleSubmit(new Event('submit') as unknown as FormEvent<HTMLFormElement>)
+      // Use setTimeout to ensure this runs after the component is fully mounted
+      setTimeout(() => {
+        const formEvent = new Event('submit') as unknown as FormEvent<HTMLFormElement>
+        handleSubmit(formEvent)
+      }, 0)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   
   // Always open results panel when loading starts
@@ -99,35 +146,44 @@ export default function HomePage() {
     }
   }, [isLoading])
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    
+    // Don't submit if already loading
+    if (isLoading) return
+    
+    // Don't submit empty input
     if (!inputValue.trim()) return
     
-    // Update the URL with the query parameter
-    const params = new URLSearchParams(searchParams.toString())
-    params.set('q', inputValue)
-    router.push(`/?${params.toString()}`)
-    
-    setLastQuestion(inputValue)
-    
-    // Reset state
-    setError(null)
+    // Save the question text before setting loading state
+    const questionText = inputValue.trim() // Store the cleaned input
+    setLastQuestion(questionText)
     setIsLoading(true)
-    setResultsOpen(true)
-    setChatResponse(null)
     setDataLoaded(false)
+    setError(null)
+    setResultsOpen(true) // Always open results panel on submit
     
-    // Create an AbortController for timeout management
+    // Always create a new session for a new prompt if we don't have one
+    if (!activeSessionId) {
+      console.log('Creating new session for prompt')
+      createSession()
+    }
+    
+    // Create an AbortController for timeout handling
     const controller = new AbortController()
     const { signal } = controller
     
-    // Set a timeout to abort the request if it takes too long (20 seconds)
+    // Set a timeout to abort the request if it takes too long
     const timeoutId = setTimeout(() => {
-      console.log('Request taking too long, aborting to try fallback provider')
       controller.abort()
     }, 20000) // 20 seconds timeout
     
     try {
+      // Update URL with the search query for shareable links
+      const params = new URLSearchParams(searchParams.toString())
+      params.set('q', inputValue)
+      router.push(`?${params.toString()}`)
+      
       const response = await fetch('/api/ask', {
         method: 'POST',
         headers: {
@@ -176,6 +232,18 @@ export default function HomePage() {
       // Mark data as loaded
       setDataLoaded(true)
       setChatResponse(chatResponseData)
+      
+      // Explicitly save to chat history - ensure we have a session first
+      let sessionId = activeSessionId
+      if (!sessionId) {
+        // Create a new session and get its ID
+        sessionId = createSession()
+        console.log('Created new session with ID:', sessionId)
+      }
+      
+      // Force add message to the active session
+      console.log('Adding message to session:', sessionId, inputValue.substring(0, 20) + '...')
+      addMessage(inputValue, chatResponseData)
       
     } catch (err: any) {
       // Clear the timeout to prevent multiple aborts
@@ -256,6 +324,52 @@ export default function HomePage() {
   const toggleResults = () => {
     setResultsOpen(prev => !prev)
   }
+  
+  // Function to start a new chat - clear state and create new session
+  const startNewChat = useCallback(() => {
+    console.log('Starting new chat, clearing UI state')
+    
+    // Clear the UI state
+    setInputValue('')
+    setLastQuestion(null)
+    setChatResponse(null)
+    setDataLoaded(false)
+    setResultsOpen(false)
+    setError(null)
+    
+    // Create a new session
+    const newSessionId = createSession()
+    console.log('Created new session with ID:', newSessionId)
+    
+    // Clear URL parameters
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('q')
+    router.push(`?${params.toString()}`)
+    
+    // Reset document title
+    document.title = 'BibScrip - AI Bible Study'
+    
+    // Focus the textarea
+    if (textareaRef.current) {
+      textareaRef.current.focus()
+    }
+  }, [createSession, router, searchParams])
+  
+  // Listen for custom new chat event from sidebar
+  useEffect(() => {
+    const handleNewChatEvent = () => {
+      console.log('Received new chat event')
+      startNewChat()
+    }
+    
+    // Add event listener
+    document.addEventListener('bibscrip:newchat', handleNewChatEvent)
+    
+    // Clean up
+    return () => {
+      document.removeEventListener('bibscrip:newchat', handleNewChatEvent)
+    }
+  }, [startNewChat])
 
   const placeholderText = `Ask a question or explore Scripture deeply...
   Example:
