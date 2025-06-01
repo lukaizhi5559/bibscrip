@@ -1,8 +1,8 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ExternalLink } from 'lucide-react';
-import { parsePassage, getBookCode, formatPassageForUrl, getBLBCode } from '@/utils/biblical-helpers';
-import { setActiveMainTab, navigateToVerseResource } from '@/utils/navigation-helpers';
+import { parsePassage, getBookCode, getBLBCode } from '@/utils/biblical-helpers';
+import { navigateToVerseResource } from '@/utils/navigation-helpers';
 
 interface ReferenceLinksProps {
   passage: string;
@@ -28,65 +28,7 @@ export function ReferenceLinks({
   // Ensure translations is always a valid array with at least one item
   const safeTranslations = (!translations || translations.length === 0) ? ['NIV'] : 
     translations.map(t => t || 'NIV');
-    
-  // Parse the passage to handle the various URL formats
-  const formattedPassage = formatPassageForUrl(passage || 'John 3:16');
-  
-  // Helper function to scroll to tab content
-  const scrollToTabContent = (tabElement: HTMLElement) => {
-    setTimeout(() => {
-      // First scroll the tab button into view
-      tabElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      
-      // Then try to find and scroll to the actual content panel
-      try {
-        // Try multiple approaches to find the content panel
-        // 1. Look for aria-controls attribute
-        const controlsId = tabElement.getAttribute('aria-controls');
-        if (controlsId) {
-          const panel = document.getElementById(controlsId);
-          if (panel) {
-            setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-            return;
-          }
-        }
-        
-        // 2. Look for related panel by tablist
-        const tablist = tabElement.closest('[role="tablist"]');
-        if (tablist) {
-          // Find the selected tab in this tablist
-          const selectedTab = tablist.querySelector('[aria-selected="true"]');
-          if (selectedTab) {
-            const selectedId = selectedTab.getAttribute('id');
-            if (selectedId) {
-              const panel = document.getElementById(`${selectedId}-panel`) || 
-                           document.getElementById(selectedId.replace('-tab', '-panel'));
-              if (panel) {
-                setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-                return;
-              }
-            }
-          }
-          
-          // 3. Look for adjacent panel
-          const nextPanel = tablist.nextElementSibling;
-          if (nextPanel && nextPanel.matches('[role="tabpanel"]')) {
-            setTimeout(() => (nextPanel as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-            return;
-          }
-        }
-        
-        // 4. Look for any visible panel
-        const panels = document.querySelectorAll('[role="tabpanel"]:not([hidden])');
-        if (panels.length > 0) {
-          setTimeout(() => (panels[0] as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-        }
-      } catch (e) {
-        console.error('Error scrolling to tab content:', e);
-      }
-    }, 150);
-  };
-  
+     
   // Navigate to the Bible Verses tab and trigger click on the appropriate resource tab
   const navigateToResource = (resourceType: 'biblegateway' | 'biblehub' | 'blueletterbible') => {
     // Store the information in sessionStorage first

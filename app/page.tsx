@@ -490,7 +490,7 @@ export default function HomePage() {
             ? (isMobile ? 'translate-x-0 w-full' : 'w-2/3 translate-x-0') 
             : (isMobile ? 'translate-x-full' : 'w-0 opacity-0 invisible')}`}
       >
-        <div className="relative h-full mb-16">
+        <div className="relative h-full pb-[3rem]">
           <Button 
             variant="ghost" 
             size="icon" 
@@ -501,7 +501,7 @@ export default function HomePage() {
             {resultsOpen ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
           </Button>
 
-          <div className="px-6 py-4 h-full overflow-y-auto">
+          <div className="px-6 h-full overflow-y-auto">
             {/* Show loading spinner inside the panel while data is loading */}
             {isLoading ? (
               <div className="flex flex-col items-center justify-center h-full">
