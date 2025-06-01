@@ -25,6 +25,7 @@ import {
   UserCircle2,
   PlusCircle,
   PanelLeftClose,
+  PanelLeftOpen,
   PanelRightOpen,
 } from "lucide-react"
 
@@ -86,7 +87,7 @@ export function AppSidebar() {
                 className="text-sidebar-foreground hover:bg-sidebar-accent"
                 aria-label="Open sidebar"
               >
-                <PanelRightOpen className="h-5 w-5" />
+                <PanelLeftOpen className="h-5 w-5" />
               </Button>
             </div>
           )}
