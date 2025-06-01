@@ -2,8 +2,10 @@
 
 import { useState } from 'react'
 import { ChatSession } from '@/hooks/use-chat-history'
-import { Button } from '@/components/ui/button'
+import React from 'react'
+
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '@/components/ui/button'
 import { SessionItem } from './session-item'
 import { PlusCircle, Trash2 } from 'lucide-react'
 import {
@@ -39,14 +41,21 @@ export function HistorySidebar({
   onClearAllSessions,
   className
 }: HistorySidebarProps) {
-  // Add debugging logs
-  console.log('HistorySidebar rendering with', sessions?.length || 0, 'sessions')
+  // Debug: log sessions and active session ID
+  console.log('HistorySidebar rendering with', sessions?.length, 'sessions')
   console.log('Active session ID:', activeSessionId)
   
   // Add wrapped handlers with debug logs
   const handleRename = (sessionId: string, newTitle: string) => {
     console.log('HistorySidebar: Renaming session', sessionId, 'to', newTitle)
     onUpdateSessionTitle(sessionId, newTitle)
+  }
+  
+  const handleSwitchSession = (sessionId: string) => {
+    console.log('HistorySidebar: Switching to session ID:', sessionId)
+    
+    // Only update the state via context - no direct URL manipulation
+    onSwitchSession(sessionId)
   }
   
   const handleDelete = (sessionId: string) => {
@@ -101,7 +110,7 @@ export function HistorySidebar({
                     key={session.id}
                     session={session}
                     isActive={session.id === activeSessionId}
-                    onClick={() => onSwitchSession(session.id)}
+                    onClick={() => handleSwitchSession(session.id)}
                     onRename={handleRename}
                     onDelete={handleDelete}
                   />

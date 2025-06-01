@@ -107,12 +107,28 @@ export function useChatHistory() {
       return `${timestamp}-${randomPart}-${counter}`;
     }
     
+    // Generate a more descriptive title with date and time
+    const now = new Date()
+    const formattedDate = now.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric'
+    })
+    const formattedTime = now.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    })
+    
+    // Create session ID first so we can include it in the title
+    const sessionId = generateUniqueId()
+    
     const newSession: ChatSession = {
-      id: generateUniqueId(),
-      title: 'New Chat',
+      id: sessionId,
+      title: `Bible Study - ${formattedDate} ${formattedTime}`,
       messages: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString()
     }
     
     // Add the new session to the beginning of the array

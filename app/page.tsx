@@ -78,6 +78,68 @@ export default function HomePage() {
     }
   }, [inputValue, dataLoaded])
   
+  // Track the last processed session ID to prevent loops
+  const lastProcessedSessionIdRef = useRef<string>('')
+  // Track whether we're in the middle of a URL update
+  const isUpdatingUrlRef = useRef<boolean>(false)
+  // Track the session switching source
+  const sessionSwitchSourceRef = useRef<'url' | 'click' | null>(null)
+  
+  // Check URL for chat session ID and query parameters
+  // This effect only runs on mount and when searchParams change
+  useEffect(() => {
+    // Skip if we're currently updating the URL from state changes
+    if (isUpdatingUrlRef.current) {
+      console.log('Skipping URL parameter processing - URL update in progress')
+      return
+    }
+    
+    // Get chat session ID from URL, if available
+    const idParam = searchParams.get('id') || ''
+    const queryParam = searchParams.get('q') || ''
+    
+    // Only proceed if the URL session ID is different from the active session
+    // and different from what we last processed to avoid loops
+    if (idParam && idParam !== activeSessionId && idParam !== lastProcessedSessionIdRef.current) {
+      console.log('Loading chat session from URL parameter:', idParam)
+      lastProcessedSessionIdRef.current = idParam
+      sessionSwitchSourceRef.current = 'url'
+      
+      // Check if the session ID exists in our sessions list
+      const targetSession = sessions.find(session => session.id === idParam)
+      
+      if (targetSession) {
+        // Update UI immediately based on the target session
+        if (targetSession.messages.length > 0) {
+          const firstMessage = targetSession.messages[0]
+          setLastQuestion(firstMessage.question)
+          setChatResponse(firstMessage.response)
+          setDataLoaded(true)
+          setResultsOpen(true)
+          setInputValue(firstMessage.question)
+        } else {
+          // Clear UI for an empty session
+          setInputValue('')
+          setLastQuestion(null)
+          setChatResponse(null)
+          setDataLoaded(false)
+          setError(null)
+        }
+        
+        // Switch the session in the context
+        // We'll mark this as a URL-initiated switch before calling switchSession
+        // to prevent any additional URL updates
+        console.log('Switching to session from URL parameter:', idParam)
+        switchSession(idParam)
+      } else {
+        console.warn('Chat session ID not found:', idParam)
+      }
+    } else if (!idParam && queryParam && !activeSessionId) {
+      // If only the query parameter exists and no active session, set the input value
+      setInputValue(queryParam)
+    }
+  }, [searchParams, sessions, switchSession, activeSessionId, activeSession])
+  
   // Check if we're on mobile
   const isMobile = useMediaQuery("(max-width: 768px)")
   
@@ -94,40 +156,101 @@ export default function HomePage() {
 
   // Handle active session changes
   useEffect(() => {
-    // If session exists and has messages, load the most recent one
-    if (activeSession && activeSession.messages.length > 0) {
-      const activeMessage = activeSession.messages[0] // Get the most recent message
-      setInputValue(activeMessage.question)
-      setLastQuestion(activeMessage.question)
-      setChatResponse(activeMessage.response)
-      setDataLoaded(true)
-      setResultsOpen(true)
-      
-      // Update URL with the query parameter
-      const params = new URLSearchParams(searchParams.toString())
-      params.set('q', activeMessage.question)
-      router.push(`?${params.toString()}`)
-    } else if (activeSession && activeSession.messages.length === 0) {
+    if (!activeSession) return;
+    
+    console.log('Active session changed, updating UI and URL:', activeSessionId);
+    console.log('Session switch source:', sessionSwitchSourceRef.current);
+    console.log('Active session messages:', activeSession.messages.length);
+    
+    // Set the session switch source to 'click' if it's not already set
+    // This helps ensure URL updates work correctly for all session changes
+    if (!sessionSwitchSourceRef.current) {
+      sessionSwitchSourceRef.current = 'click';
+    }
+    
+    // Update lastProcessedSessionId to prevent re-processing this session
+    lastProcessedSessionIdRef.current = activeSessionId || '';
+    
+    // Get current URL parameters
+    const params = new URLSearchParams(searchParams.toString());
+    const currentIdParam = params.get('id') || '';
+    
+    // ALWAYS update UI regardless of what triggered the change
+    // Update UI state based on active session
+    if (activeSession.messages.length > 0) {
+      const activeMessage = activeSession.messages[0]; // Get the most recent message
+      console.log('Loading message:', activeMessage.question);
+      setInputValue(activeMessage.question);
+      setLastQuestion(activeMessage.question);
+      setChatResponse(activeMessage.response);
+      setDataLoaded(true);
+      setResultsOpen(true);
+    } else {
       // Clear UI for a new empty session
-      setInputValue('')
-      setLastQuestion(null)
-      setChatResponse(null)
-      setDataLoaded(false)
-      setError(null)
+      setInputValue('');
+      setLastQuestion(null);
+      setChatResponse(null);
+      setDataLoaded(false);
+      setError(null);
+    }
+    
+    // Update URL in any of these cases:
+    // 1. The change was triggered by a click (not URL) OR
+    // 2. The active session ID doesn't match the URL
+    if (sessionSwitchSourceRef.current !== 'url' || currentIdParam !== activeSessionId) {
+      console.log('Session changed in state, updating UI and URL');
       
-      // Clear URL parameters
-      const params = new URLSearchParams(searchParams.toString())
-      params.delete('q')
-      router.push(`?${params.toString()}`)
+      // Update URL parameters
+      if (activeSession.messages.length > 0) {
+        if (activeSessionId) {
+          params.set('id', activeSessionId);
+        }
+        params.set('q', activeSession.messages[0].question);
+      } else {
+        // Update URL parameters
+        if (activeSessionId) {
+          params.set('id', activeSessionId);
+        }
+        params.delete('q');
+      }
+      
+      // Mark that we're updating the URL to prevent URL effect from processing
+      isUpdatingUrlRef.current = true;
+      
+      // Log URL update for debugging
+      console.log('Updating URL params:', { 
+        from: currentIdParam, 
+        to: activeSessionId, 
+        source: sessionSwitchSourceRef.current 
+      });
+      
+      // Always ensure sessionSwitchSourceRef is set for the next update
+      if (sessionSwitchSourceRef.current !== 'url') {
+        sessionSwitchSourceRef.current = 'click';
+      }
+      
+      // Update the URL without causing a full page reload
+      console.log('Updating URL to match active session:', activeSessionId);
+      router.push(`?${params.toString()}`, { scroll: false });
+      
+      // Reset the flag after a short delay to allow the URL update to complete
+      setTimeout(() => {
+        isUpdatingUrlRef.current = false;
+        // Also clear the session source after URL update completes
+        // This ensures future session changes are properly tracked
+        if (sessionSwitchSourceRef.current === 'click') {
+          sessionSwitchSourceRef.current = null;
+        }
+      }, 100);
       
       // Reset document title
-      document.title = 'BibScrip - AI Bible Study'
+      document.title = 'BibScrip - AI Bible Study';
     }
   }, [activeSessionId, activeSession, searchParams, router])
 
   // Check for query parameter on initial load only
   useEffect(() => {
-    const q = searchParams.get('q')
+    const q = searchParams.get('q') || ''
     if (q) {
       setInputValue(q)
       // Use setTimeout to ensure this runs after the component is fully mounted
@@ -158,16 +281,30 @@ export default function HomePage() {
     // Save the question text before setting loading state
     const questionText = inputValue.trim() // Store the cleaned input
     setLastQuestion(questionText)
+    setInputValue("") // Clear the textarea immediately
     setIsLoading(true)
     setDataLoaded(false)
     setError(null)
     setResultsOpen(true) // Always open results panel on submit
     
     // Always create a new session for a new prompt if we don't have one
-    if (!activeSessionId) {
+    let currentSessionId = activeSessionId
+    if (!currentSessionId) {
       console.log('Creating new session for prompt')
-      createSession()
+      currentSessionId = createSession() // Store the new session ID
+      console.log('Created new session with ID:', currentSessionId)
     }
+    
+    // Update URL with the search query and session ID for shareable links
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('q', inputValue)
+    
+    // If we have an active session ID, include it in the URL
+    if (currentSessionId) {
+      params.set('id', currentSessionId)
+    }
+    
+    router.push(`?${params.toString()}`)
     
     // Create an AbortController for timeout handling
     const controller = new AbortController()
@@ -179,10 +316,6 @@ export default function HomePage() {
     }, 20000) // 20 seconds timeout
     
     try {
-      // Update URL with the search query for shareable links
-      const params = new URLSearchParams(searchParams.toString())
-      params.set('q', inputValue)
-      router.push(`?${params.toString()}`)
       
       const response = await fetch('/api/ask', {
         method: 'POST',
@@ -341,9 +474,10 @@ export default function HomePage() {
     const newSessionId = createSession()
     console.log('Created new session with ID:', newSessionId)
     
-    // Clear URL parameters
+    // Update URL with the new session ID
     const params = new URLSearchParams(searchParams.toString())
-    params.delete('q')
+    params.delete('q')  // Remove any existing query parameter
+    params.set('id', newSessionId)  // Add the new session ID to URL
     router.push(`?${params.toString()}`)
     
     // Reset document title
@@ -527,7 +661,16 @@ export default function HomePage() {
                 detectedContentType={detectedContentType}
                 onSave={() => alert('Bookmark feature coming soon!')}
                 onShare={() => {
-                  const url = `${window.location.origin}?q=${encodeURIComponent(lastQuestion || inputValue)}`
+                  // Create a shareable URL with both the query and session ID
+                  const params = new URLSearchParams()
+                  params.set('q', lastQuestion || inputValue || '')
+                  
+                  // Include the session ID if available
+                  if (activeSessionId) {
+                    params.set('id', activeSessionId)
+                  }
+                  
+                  const url = `${window.location.origin}?${params.toString()}`
                   navigator.clipboard.writeText(url)
                   alert('Link copied to clipboard!')
                 }}

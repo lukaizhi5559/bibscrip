@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { ChatSession } from '@/hooks/use-chat-history'
 import { Button } from '@/components/ui/button'
 import { MessageSquare, Pencil, Check, X, Trash2 } from 'lucide-react'
@@ -22,6 +23,7 @@ interface SessionItemProps {
 }
 
 export function SessionItem({ session, isActive, onClick, onRename, onDelete }: SessionItemProps) {
+  const router = useRouter()
   const [isEditing, setIsEditing] = useState(false)
   const [titleInput, setTitleInput] = useState(session.fullPrompt || session.title)
   
@@ -52,13 +54,28 @@ export function SessionItem({ session, isActive, onClick, onRename, onDelete }: 
     setIsEditing(true)
   }
   
+  const handleSessionClick = (e: React.MouseEvent) => {
+    // Don't proceed if we're editing or clicking on action buttons
+    if (isEditing || (e.target as HTMLElement).closest('.session-action-btn')) {
+      e.preventDefault()
+      e.stopPropagation()
+      return
+    }
+    
+    console.log('SessionItem clicked:', session.id)
+    
+    // Call the onClick handler to update the context state
+    // The page component will handle URL updates based on the active session
+    onClick()
+  }
+  
   return (
     <div 
       className={cn(
         "group flex flex-col w-full rounded-md p-2 cursor-pointer hover:bg-muted/50 transition-colors relative",
         isActive && "bg-muted"
       )}
-      onClick={isEditing ? undefined : onClick}
+      onClick={isEditing ? undefined : handleSessionClick}
     >
       <div className="flex items-center justify-between w-full">
         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -84,7 +101,7 @@ export function SessionItem({ session, isActive, onClick, onRename, onDelete }: 
                   type="submit" 
                   size="icon" 
                   variant="ghost" 
-                  className="h-6 w-6" 
+                  className="h-6 w-6 session-action-btn" 
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Check className="h-3 w-3" />
@@ -93,7 +110,7 @@ export function SessionItem({ session, isActive, onClick, onRename, onDelete }: 
                   type="button" 
                   size="icon" 
                   variant="ghost" 
-                  className="h-6 w-6" 
+                  className="h-6 w-6 session-action-btn" 
                   onClick={(e) => {
                     e.stopPropagation()
                     cancelRename()
@@ -133,7 +150,7 @@ export function SessionItem({ session, isActive, onClick, onRename, onDelete }: 
               type="button"
               variant="ghost" 
               size="icon" 
-              className="h-6 w-6" 
+              className="h-6 w-6 session-action-btn" 
               onClick={handleEdit}
             >
               <Pencil className="h-3 w-3" />
@@ -142,7 +159,7 @@ export function SessionItem({ session, isActive, onClick, onRename, onDelete }: 
               type="button"
               variant="ghost" 
               size="icon" 
-              className="h-6 w-6 text-destructive hover:text-destructive/90" 
+              className="h-6 w-6 text-destructive hover:text-destructive/90 session-action-btn" 
               onClick={handleDeleteClick}
             >
               <Trash2 className="h-3 w-3" />
