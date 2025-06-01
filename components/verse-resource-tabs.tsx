@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ExpandableText } from './expandable-text';
+import { ExternalLink } from 'lucide-react';
 
 interface VerseResourceTabsProps {
   verse: {
@@ -235,8 +236,6 @@ export default function VerseResourceTabs({ verse, defaultTab = 'text' }: VerseR
     ? `https://biblehub.com/${formattedBook}/${chapter}-${firstVerseNum}.htm`
     : `https://biblehub.com/${formattedBook}/${chapter}.htm`;
 
-  console.log('BIBLEHUB:', formattedBook, chapter, verseNum, '→', firstVerseNum)
-  
   // BlueLetterBible URL with direct translation code
   // BLB typically uses lowercase translation codes
   const blbTranslationCode = translationCode.toLowerCase();
@@ -252,24 +251,60 @@ export default function VerseResourceTabs({ verse, defaultTab = 'text' }: VerseR
         >
           Verse Text
         </button>
-        <button 
-          className={`py-2 px-1 rounded-md text-sm transition-colors ${activeTab === 'biblegateway' ? 'bg-background shadow-sm font-medium' : 'hover:bg-muted-foreground/10'}`}
-          onClick={() => setActiveTab('biblegateway')}
-        >
-          BibleGateway
-        </button>
-        <button 
-          className={`py-2 px-1 rounded-md text-sm transition-colors ${activeTab === 'biblehub' ? 'bg-background shadow-sm font-medium' : 'hover:bg-muted-foreground/10'}`}
-          onClick={() => setActiveTab('biblehub')}
-        >
-          BibleHub
-        </button>
-        <button 
-          className={`py-2 px-1 rounded-md text-sm transition-colors ${activeTab === 'blueletterbible' ? 'bg-background shadow-sm font-medium' : 'hover:bg-muted-foreground/10'}`}
-          onClick={() => setActiveTab('blueletterbible')}
-        >
-          BlueLetterBible
-        </button>
+        <div className="relative">
+          <button 
+            className={`w-full py-2 px-1 rounded-md text-sm transition-colors ${activeTab === 'biblegateway' ? 'bg-background shadow-sm font-medium' : 'hover:bg-muted-foreground/10'}`}
+            onClick={() => setActiveTab('biblegateway')}
+          >
+            BibleGateway
+          </button>
+          <button 
+            className="absolute top-1 right-1 p-1 opacity-70 hover:opacity-100 text-muted-foreground hover:text-foreground rounded-full"
+            title="Open in new tab"
+            onClick={(e) => {
+              e.stopPropagation();
+              window.open(bibleGatewayUrl, '_blank');
+            }}
+          >
+            <ExternalLink className="h-3 w-3" />
+          </button>
+        </div>
+        <div className="relative">
+          <button 
+            className={`w-full py-2 px-1 rounded-md text-sm transition-colors ${activeTab === 'biblehub' ? 'bg-background shadow-sm font-medium' : 'hover:bg-muted-foreground/10'}`}
+            onClick={() => setActiveTab('biblehub')}
+          >
+            BibleHub
+          </button>
+          <button 
+            className="absolute top-1 right-1 p-1 opacity-70 hover:opacity-100 text-muted-foreground hover:text-foreground rounded-full"
+            title="Open in new tab"
+            onClick={(e) => {
+              e.stopPropagation();
+              window.open(bibleHubUrl, '_blank');
+            }}
+          >
+            <ExternalLink className="h-3 w-3" />
+          </button>
+        </div>
+        <div className="relative">
+          <button 
+            className={`w-full py-2 px-1 rounded-md text-sm transition-colors ${activeTab === 'blueletterbible' ? 'bg-background shadow-sm font-medium' : 'hover:bg-muted-foreground/10'}`}
+            onClick={() => setActiveTab('blueletterbible')}
+          >
+            BlueLetterBible
+          </button>
+          <button 
+            className="absolute top-1 right-1 p-1 opacity-70 hover:opacity-100 text-muted-foreground hover:text-foreground rounded-full"
+            title="Open in new tab"
+            onClick={(e) => {
+              e.stopPropagation();
+              window.open(blueLetterBibleUrl, '_blank');
+            }}
+          >
+            <ExternalLink className="h-3 w-3" />
+          </button>
+        </div>
       </div>
       
       {/* Tab content based on active tab */}
@@ -299,7 +334,7 @@ export default function VerseResourceTabs({ verse, defaultTab = 'text' }: VerseR
                 />
               </div>
             </div>
-            <div className="text-center">
+            {/* <div className="text-center">
               <a 
                 href={bibleGatewayUrl} 
                 target="_blank" 
@@ -308,7 +343,7 @@ export default function VerseResourceTabs({ verse, defaultTab = 'text' }: VerseR
               >
                 Open in BibleGateway (if not loading properly)
               </a>
-            </div>
+            </div> */}
           </div>
         )}
         

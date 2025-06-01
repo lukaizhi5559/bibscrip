@@ -101,8 +101,6 @@ export async function POST(request: Request) {
     const aiResponseVerses = extractVerseReferences(aiExplanation);
     verseRefsToFetch = Array.from(new Set([...questionVerses, ...aiResponseVerses]));
     
-    console.log('Verses to fetch:', verseRefsToFetch);
-
     // 3. Fetch Bible verses
     const fetchedVerses: BibleVerse[] = [];
     if (verseRefsToFetch.length > 0) {
@@ -118,8 +116,6 @@ export async function POST(request: Request) {
       });
     }
     
-    console.log('Fetched verses:', fetchedVerses);
-
     return NextResponse.json({
       ai: aiExplanation,
       verses: fetchedVerses,

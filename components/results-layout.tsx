@@ -152,12 +152,6 @@ export function ResultsLayout({
     }))
   );
   
-  // Enhanced debug logging for verse data
-  console.log('Verses data in ResultsLayout:', verses);
-  console.log('Verse refs specifically:', verses.map(v => v.ref));
-  console.log('First verse complete data:', verses[0]);
-  console.log('AI Response:', aiResponse);
-  
   // Determine if we should show a specialized card based on the question content
   const showTopicCard = detectedContentType === 'topic' && question.toLowerCase().includes('what does the bible say about');
   const showCharacterCard = detectedContentType === 'character' && !question.toLowerCase().includes('verse');
@@ -175,7 +169,7 @@ export function ResultsLayout({
             <span className="hidden sm:inline">Your Answer</span>
             <span className="sm:hidden">Answer</span>
           </TabsTrigger>
-          <TabsTrigger value="verses" data-value="verses" className="flex-1">
+          <TabsTrigger id="bible-verses-tab" value="verses" data-value="verses" className="flex-1">
             <Book className="h-4 w-4 mr-2" />
             <span className="hidden sm:inline">Bible Verses</span>
             <span className="sm:hidden">Verses</span>

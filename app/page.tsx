@@ -128,7 +128,6 @@ export default function HomePage() {
     }, 20000) // 20 seconds timeout
     
     try {
-      console.log('Making primary API request...')
       const response = await fetch('/api/ask', {
         method: 'POST',
         headers: {
@@ -163,9 +162,6 @@ export default function HomePage() {
         commentaryExcerpts: [] // Initialize with empty array
       }
       
-      // Debug logging
-      console.log('API Response received successfully')
-
       // Detect content type from the question
       if (inputValue.toLowerCase().includes('topic') || inputValue.toLowerCase().includes('theme')) {
         setDetectedContentType('topic')

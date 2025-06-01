@@ -14,5 +14,9 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 
+  pre {
+    overflow: auto;
+  }
+
   /* h1-h6 will inherit foreground color, font-semibold is fine */
 }

@@ -9,9 +9,7 @@
 export function navigateToVerseResource(
   verseRef: string, 
   resourceType: 'biblegateway' | 'biblehub' | 'blueletterbible'
-): void {
-  console.log(`Navigating to verse resource: ${verseRef}, type: ${resourceType}`);
-  
+): void { 
   // First, set sessionStorage values to communicate between components
   // Our VerseResourceTabs component will check these values on mount/initialization
   window.sessionStorage.setItem('activeVerseRef', verseRef);
@@ -45,7 +43,6 @@ export function navigateToVerseResource(
   for (const button of buttons) {
     if ((button.textContent || '').trim().toLowerCase().includes('bible verses')) {
       versesTab = button;
-      console.log('Found verses tab by button text content');
       break;
     }
   }
@@ -57,7 +54,6 @@ export function navigateToVerseResource(
         const tab = document.querySelector(selector) as HTMLElement;
         if (tab) {
           versesTab = tab;
-          console.log(`Found verses tab with selector: ${selector}`);
           break;
         }
       } catch (e) {
@@ -67,8 +63,6 @@ export function navigateToVerseResource(
   }
   
   if (versesTab) {
-    console.log('Clicking verses tab', versesTab);
-    
     try {
       // Try different methods to trigger the tab click
       versesTab.click(); // Standard click
