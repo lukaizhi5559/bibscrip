@@ -32,6 +32,61 @@ export function ReferenceLinks({
   // Parse the passage to handle the various URL formats
   const formattedPassage = formatPassageForUrl(passage || 'John 3:16');
   
+  // Helper function to scroll to tab content
+  const scrollToTabContent = (tabElement: HTMLElement) => {
+    setTimeout(() => {
+      // First scroll the tab button into view
+      tabElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
+      // Then try to find and scroll to the actual content panel
+      try {
+        // Try multiple approaches to find the content panel
+        // 1. Look for aria-controls attribute
+        const controlsId = tabElement.getAttribute('aria-controls');
+        if (controlsId) {
+          const panel = document.getElementById(controlsId);
+          if (panel) {
+            setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+            return;
+          }
+        }
+        
+        // 2. Look for related panel by tablist
+        const tablist = tabElement.closest('[role="tablist"]');
+        if (tablist) {
+          // Find the selected tab in this tablist
+          const selectedTab = tablist.querySelector('[aria-selected="true"]');
+          if (selectedTab) {
+            const selectedId = selectedTab.getAttribute('id');
+            if (selectedId) {
+              const panel = document.getElementById(`${selectedId}-panel`) || 
+                           document.getElementById(selectedId.replace('-tab', '-panel'));
+              if (panel) {
+                setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+                return;
+              }
+            }
+          }
+          
+          // 3. Look for adjacent panel
+          const nextPanel = tablist.nextElementSibling;
+          if (nextPanel && nextPanel.matches('[role="tabpanel"]')) {
+            setTimeout(() => (nextPanel as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+            return;
+          }
+        }
+        
+        // 4. Look for any visible panel
+        const panels = document.querySelectorAll('[role="tabpanel"]:not([hidden])');
+        if (panels.length > 0) {
+          setTimeout(() => (panels[0] as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+        }
+      } catch (e) {
+        console.error('Error scrolling to tab content:', e);
+      }
+    }, 150);
+  };
+  
   // Navigate to the Bible Verses tab and trigger click on the appropriate resource tab
   const navigateToResource = (resourceType: 'biblegateway' | 'biblehub' | 'blueletterbible') => {
     // Store the information in sessionStorage first
@@ -103,6 +158,9 @@ export function ReferenceLinks({
             // 4. Another delayed click for good measure
             setTimeout(() => { tab.click(); }, 50);
             
+            // Use the dedicated function to scroll to tab and its content
+            // scrollToTabContent(tab);
+            
             tabFound = true;
             break;
           }
@@ -117,21 +175,122 @@ export function ReferenceLinks({
       navigateToVerseResource(passage, resourceType);
     }
     
-    // Try to directly find and activate the VerseResourceTabs component
+    // Directly and forcefully find and activate the VerseResourceTabs component
     setTimeout(() => {
       try {
-        // Try to find the tab by verse reference attribute
-        const tabButtons = document.querySelectorAll(`[data-verse-ref="${passage}"] button, [data-ref="${passage}"] button`);
-        tabButtons.forEach(button => {
-          if ((button.textContent || '').includes(resourceType)) {
-            console.log(`Found resource tab for ${resourceType}, clicking...`); 
-            (button as HTMLElement).click();
+        // First find any tab that matches our target passage and resource type
+        console.log(`Looking for tabs with passage: ${passage} and resource: ${resourceType}`);
+        
+        // Various selectors to try for finding the right tab
+        const selectors = [
+          `[data-verse-ref="${passage}"] button`, 
+          `[data-ref="${passage}"] button`,
+          `button[data-resource="${resourceType}"]`,
+          `[data-tab="${resourceType}"]`,
+          `.verse-tab[data-verse="${passage}"]`,
+          `button:contains("${resourceType}")`
+        ];
+        
+        let targetButton = null;
+        
+        // Try each selector
+        for (const selector of selectors) {
+          try {
+            const buttons = document.querySelectorAll(selector);
+            for (const button of buttons) {
+              if ((button.textContent || '').toLowerCase().includes(resourceType.toLowerCase())) {
+                targetButton = button as HTMLElement;
+                console.log(`Found target button with selector: ${selector}`);
+                break;
+              }
+            }
+            if (targetButton) break;
+          } catch (e) {
+            console.warn(`Selector ${selector} failed:`, e);
           }
-        });
+        }
+        
+        // If we didn't find by selector, try a more general approach
+        if (!targetButton) {
+          console.log('Trying general approach to find the tab...');
+          const allButtons = document.querySelectorAll('button');
+          for (const button of allButtons) {
+            const text = (button.textContent || '').toLowerCase();
+            if (text.includes(resourceType.toLowerCase())) {
+              // Check if this button is in a verse-related context
+              const parent = button.closest('[data-verse-ref], [data-ref], .verse-tabs, .resource-tabs');
+              if (parent) {
+                targetButton = button as HTMLElement;
+                console.log('Found target button via general search');
+                break;
+              }
+            }
+          }
+        }
+        
+        // If we found a button, click it and scroll to it
+        if (targetButton) {
+          console.log(`Clicking and scrolling to resource tab: ${resourceType}`);
+          
+          // First, click it to activate
+          targetButton.click();
+          
+          // Then scroll directly to it with a generous delay
+          setTimeout(() => {
+            console.log('Scrolling to tab...');
+            targetButton!.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            
+            // Force scroll container to ensure visibility
+            const scrollContainers = document.querySelectorAll('.overflow-auto, .overflow-y-auto, [data-scroll-container]');
+            for (const container of scrollContainers) {
+              const rect = targetButton!.getBoundingClientRect();
+              if (container.contains(targetButton)) {
+                (container as HTMLElement).scrollTop = rect.top - 100;
+                console.log('Adjusted scroll container position');
+                break;
+              }
+            }
+            
+            // After scrolling to tab, find and scroll to content
+            // setTimeout(() => {
+            //   // Try multiple approaches to find related content
+            //   const tabpanels = document.querySelectorAll('[role="tabpanel"]:not([hidden]), .tab-content:not([hidden]), .resource-content');
+            //   console.log(`Found ${tabpanels.length} potential tab panels`);
+              
+            //   let contentPanel = null;
+              
+            //   // Try to find most appropriate panel
+            //   for (const panel of tabpanels) {
+            //     // Check if panel is visible
+            //     const style = window.getComputedStyle(panel);
+            //     if (style.display !== 'none' && style.visibility !== 'hidden') {
+            //       // If the panel contains the resource type name, that's probably it
+            //       if ((panel.textContent || '').toLowerCase().includes(resourceType.toLowerCase())) {
+            //         contentPanel = panel;
+            //         console.log('Found content panel containing resource name');
+            //         break;
+            //       }
+            //       // Otherwise just use the first visible panel
+            //       if (!contentPanel) {
+            //         contentPanel = panel;
+            //       }
+            //     }
+            //   }
+              
+            //   // Scroll to the content panel if found
+            //   if (contentPanel) {
+            //     console.log('Scrolling to content panel...');
+            //     (contentPanel as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' });
+            //   }
+            // }, 400);
+          }, 300);
+        } else {
+          console.warn(`Could not find tab for ${resourceType}`);
+        }
       } catch (e) {
-        console.error('Error finding verse tabs:', e);
+        console.error('Error finding or scrolling to verse tabs:', e);
       }
-    }, 300);
+    }, 400);
   };
   
   // Function to open external link in new tab

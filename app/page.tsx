@@ -371,9 +371,7 @@ export default function HomePage() {
     }
   }, [startNewChat])
 
-  const placeholderText = `Ask a question or explore Scripture deeply...
-  Example:
-  What does Romans 8:28 mean? Include related verses and how to apply it today.`;
+  const placeholderText = `Ask anything about Scripture, theology, or life.`;
 
 
   return (
@@ -492,7 +490,7 @@ export default function HomePage() {
             ? (isMobile ? 'translate-x-0 w-full' : 'w-2/3 translate-x-0') 
             : (isMobile ? 'translate-x-full' : 'w-0 opacity-0 invisible')}`}
       >
-        <div className="relative h-full">
+        <div className="relative h-full mb-16">
           <Button 
             variant="ghost" 
             size="icon" 

@@ -9,6 +9,7 @@ import { SidebarController } from "@/components/sidebar-controller"
 import { ChatHistoryProvider } from "@/contexts/chat-history-context"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { cookies } from "next/headers"
+import { LocalStorageInitializer } from "@/components/local-storage-initializer"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 
@@ -30,6 +31,8 @@ export default async function RootLayout({
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <body>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          {/* Add the initializer to clean up localStorage */}
+          <LocalStorageInitializer />
           <ChatHistoryProvider>
             <SidebarProvider defaultOpen={defaultSidebarOpen}>
               <div className="bg-background w-full h-screen overflow-hidden">
@@ -48,11 +51,12 @@ export default async function RootLayout({
                     {/* Removed mx-auto to prevent uneven margins */}
                     <div className="w-full h-full">
                       {children}
-                      <AppFooter />
                     </div>
                   </main> {/* AppFooter uses its own internal 'container' to center its content */}
+                  {" "}
                 </div>
               </SidebarInset>
+              {/* <AppFooter /> */}
               </div>
             </SidebarProvider>
           </ChatHistoryProvider>

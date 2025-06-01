@@ -39,6 +39,20 @@ export function HistorySidebar({
   onClearAllSessions,
   className
 }: HistorySidebarProps) {
+  // Add debugging logs
+  console.log('HistorySidebar rendering with', sessions?.length || 0, 'sessions')
+  console.log('Active session ID:', activeSessionId)
+  
+  // Add wrapped handlers with debug logs
+  const handleRename = (sessionId: string, newTitle: string) => {
+    console.log('HistorySidebar: Renaming session', sessionId, 'to', newTitle)
+    onUpdateSessionTitle(sessionId, newTitle)
+  }
+  
+  const handleDelete = (sessionId: string) => {
+    console.log('HistorySidebar: Deleting session', sessionId)
+    onDeleteSession(sessionId)
+  }
   const [clearDialogOpen, setClearDialogOpen] = useState(false)
   
   return (
@@ -70,17 +84,30 @@ export function HistorySidebar({
       
       {sessions.length > 0 ? (
         <ScrollArea className="flex-1">
-          <div className="p-3 space-y-2">
-            {sessions.map((session) => (
-              <SessionItem
-                key={session.id}
-                session={session}
-                isActive={session.id === activeSessionId}
-                onClick={() => onSwitchSession(session.id)}
-                onRename={onUpdateSessionTitle}
-                onDelete={onDeleteSession}
-              />
-            ))}
+          <div className="p-2 space-y-1">
+            {/* Add a seen IDs set to prevent duplicate keys */}
+            {(() => {
+              const seenIds = new Set<string>();
+              return sessions.map((session) => {
+                // Skip any sessions with duplicate IDs to prevent React key errors
+                if (seenIds.has(session.id)) {
+                  console.warn(`Skipping rendering session with duplicate ID: ${session.id}`)
+                  return null;
+                }
+                seenIds.add(session.id);
+                
+                return (
+                  <SessionItem
+                    key={session.id}
+                    session={session}
+                    isActive={session.id === activeSessionId}
+                    onClick={() => onSwitchSession(session.id)}
+                    onRename={handleRename}
+                    onDelete={handleDelete}
+                  />
+                );
+              }).filter(Boolean); // Filter out any null items
+            })()} 
           </div>
         </ScrollArea>
       ) : (

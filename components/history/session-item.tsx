@@ -6,6 +6,12 @@ import { Button } from '@/components/ui/button'
 import { MessageSquare, Pencil, Check, X, Trash2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 interface SessionItemProps {
   session: ChatSession
@@ -17,7 +23,7 @@ interface SessionItemProps {
 
 export function SessionItem({ session, isActive, onClick, onRename, onDelete }: SessionItemProps) {
   const [isEditing, setIsEditing] = useState(false)
-  const [titleInput, setTitleInput] = useState(session.title)
+  const [titleInput, setTitleInput] = useState(session.fullPrompt || session.title)
   
   const formattedDate = new Date(session.updatedAt).toLocaleDateString(undefined, {
     month: 'short',
@@ -25,6 +31,7 @@ export function SessionItem({ session, isActive, onClick, onRename, onDelete }: 
   })
   
   const handleRename = () => {
+    console.log('SessionItem: Renaming session', session.id, 'to', titleInput)
     onRename(session.id, titleInput)
     setIsEditing(false)
   }
@@ -36,20 +43,26 @@ export function SessionItem({ session, isActive, onClick, onRename, onDelete }: 
   
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation() // Prevent triggering onClick of the parent
+    console.log('SessionItem: Deleting session', session.id)
     onDelete(session.id)
+  }
+  
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation() // Prevent triggering onClick of the parent
+    setIsEditing(true)
   }
   
   return (
     <div 
       className={cn(
-        "group flex flex-col w-full rounded-md p-3 cursor-pointer hover:bg-muted/50 transition-colors",
+        "group flex flex-col w-full rounded-md p-2 cursor-pointer hover:bg-muted/50 transition-colors relative",
         isActive && "bg-muted"
       )}
       onClick={isEditing ? undefined : onClick}
     >
       <div className="flex items-center justify-between w-full">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <MessageSquare className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+          {/* <MessageSquare className="h-4 w-4 flex-shrink-0 text-muted-foreground" /> */}
           
           {isEditing ? (
             <form 
@@ -92,9 +105,18 @@ export function SessionItem({ session, isActive, onClick, onRename, onDelete }: 
             </form>
           ) : (
             <div className="flex items-center justify-between w-full min-w-0">
-              <span className="font-medium truncate mr-2">
-                {session.title.length > 20 ? `${session.title.substring(0, 20)}...` : session.title}
-              </span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-xs text-muted-foreground mt-1 truncate">
+                      {session.title.length > 15 ? `${session.title.substring(0, 15)}...` : session.fullPrompt}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    <p>{session.fullPrompt || session.title}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <span className="text-xs text-muted-foreground flex-shrink-0">
                 {formattedDate}
               </span>
@@ -103,22 +125,24 @@ export function SessionItem({ session, isActive, onClick, onRename, onDelete }: 
         </div>
         
         {!isEditing && (
-          <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <div 
+            className="flex items-center" 
+            onClick={(e) => e.stopPropagation()}
+          >
             <Button 
+              type="button"
               variant="ghost" 
               size="icon" 
               className="h-6 w-6" 
-              onClick={(e) => {
-                e.stopPropagation()
-                setIsEditing(true)
-              }}
+              onClick={handleEdit}
             >
               <Pencil className="h-3 w-3" />
             </Button>
             <Button 
+              type="button"
               variant="ghost" 
               size="icon" 
-              className="h-6 w-6 text-destructive hover:text-destructive" 
+              className="h-6 w-6 text-destructive hover:text-destructive/90" 
               onClick={handleDeleteClick}
             >
               <Trash2 className="h-3 w-3" />
@@ -127,13 +151,14 @@ export function SessionItem({ session, isActive, onClick, onRename, onDelete }: 
         )}
       </div>
       
-      {session.messages.length > 0 && !isEditing && (
+      {/* Removed subtitle to make items more compact */}
+      {/* {session.messages.length > 0 && !isEditing && (
         <p className="text-xs text-muted-foreground mt-1 truncate">
-          {session.messages[0].question.length > 40 
-            ? `${session.messages[0].question.substring(0, 40)}...` 
+          {session.messages[0].question.length > 20 
+            ? `${session.messages[0].question.substring(0, 20)}...` 
             : session.messages[0].question}
         </p>
-      )}
+      )} */}
     </div>
   )
 }

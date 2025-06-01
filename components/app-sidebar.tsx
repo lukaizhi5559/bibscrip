@@ -79,7 +79,7 @@ export function AppSidebar({
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={toggleSidebar}
+                onClick={() => toggleSidebar && toggleSidebar()}
                 className="text-sidebar-foreground hover:bg-sidebar-accent"
                 aria-label="Close sidebar"
               >
@@ -104,7 +104,7 @@ export function AppSidebar({
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={toggleSidebar}
+                onClick={() => toggleSidebar && toggleSidebar()}
                 className="text-sidebar-foreground hover:bg-sidebar-accent"
                 aria-label="Open sidebar"
               >
@@ -134,7 +134,7 @@ export function AppSidebar({
           }}
           onSwitchSession={(sessionId) => {
             switchSession(sessionId)
-            if (isMobile) setOpenMobile(false)
+            if (isMobile && setOpenMobile) setOpenMobile(false)
           }}
           onUpdateSessionTitle={updateSessionTitle}
           onDeleteSession={deleteSession}
@@ -156,7 +156,7 @@ export function AppSidebar({
                     // Fallback to just creating a session
                     createSession()
                   }
-                  toggleSidebar()
+                  if (toggleSidebar) toggleSidebar()
                 }}
               />
             </SidebarMenuItem>
@@ -164,7 +164,7 @@ export function AppSidebar({
               <SidebarMenuButton
                 icon={<History />}
                 tooltip="Chat History"
-                onClick={toggleSidebar}
+                onClick={() => toggleSidebar && toggleSidebar()}
               />
             </SidebarMenuItem>
           </SidebarMenu>
@@ -183,7 +183,7 @@ export function AppSidebar({
                   tooltip={item.tooltip}
                   disabled={item.disabled}
                   onClick={() => {
-                    if (isMobile && !item.disabled) setOpenMobile(false)
+                    if (isMobile && !item.disabled && setOpenMobile) setOpenMobile(false)
                   }}
                 >
                   {!item.disabled ? <Link href={item.href} /> : <span className="w-full" />}

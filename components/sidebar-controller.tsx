@@ -12,8 +12,8 @@ export function SidebarController() {
   const { createSession } = useChatHistoryContext() // Get createSession from context
 
   const handleNewChat = () => {
-    // Create a new session from context
-    createSession()
+    // We DON'T call createSession() here anymore - only dispatch the event
+    // to avoid creating duplicate sessions
     
     // Dispatch a custom event that the page component can listen for
     const newChatEvent = new CustomEvent('bibscrip:newchat', {
