@@ -294,7 +294,7 @@ export function ResultsLayout({
     <div className="w-full max-w-4xl py-6 relative h-full overflow-y-auto results-layout">
       <ScrollToTopButton />
       {/* Main question display with truncation for long questions */}
-      <h1 className="text-2xl font-bold mb-4" title={question} id="results-title">{truncateText(question, 100)}</h1>
+      <h1 className="text-2xl font-bold mb-4 pl-10" title={question} id="results-title">{truncateText(question, 100)}</h1>
       
       {/* Tabs for different content sections */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

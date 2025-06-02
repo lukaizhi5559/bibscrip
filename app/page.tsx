@@ -849,7 +849,7 @@ export default function HomePage() {
       >
         <div className="relative h-full pb-[3rem]">
           <Button 
-            variant="ghost" 
+            variant="outline"
             size="icon" 
             className="absolute top-4 left-4 z-50" 
             onClick={toggleResults}
