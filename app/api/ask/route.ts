@@ -224,12 +224,12 @@ export async function POST(request: Request) {
       }
       
       // Setup provider order based on user preference
-      // Following the user's preference: OpenAI → Mistral → Claude
-      let providers: Array<'openai' | 'mistral' | 'claude'> = ['openai', 'mistral', 'claude'];
+      // Following the user's preference: OpenAI → Mistral → Claude → Gemini
+      let providers: Array<'openai' | 'mistral' | 'claude' | 'gemini'> = ['openai', 'mistral', 'claude', 'gemini'];
       
       // If fallback is requested, start with Mistral
       if (useFallback) {
-        providers = ['mistral', 'claude', 'openai'];
+        providers = ['mistral', 'claude', 'gemini', 'openai'];
       }
       
       // Setup timeout for API requests

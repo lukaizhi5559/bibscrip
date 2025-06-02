@@ -5,7 +5,7 @@
 import { CachedResponse, createCacheKey, cacheManager } from './cache-manager';
 
 export interface AIProvider {
-  name: 'openai' | 'mistral' | 'claude';
+  name: 'openai' | 'mistral' | 'claude' | 'gemini';
   isAvailable: () => boolean;
   rateLimitInfo: {
     maxRequestsPerMinute: number;
@@ -16,7 +16,7 @@ export interface AIProvider {
 }
 
 export interface RequestOptions {
-  providers?: Array<'openai' | 'mistral' | 'claude'>;
+  providers?: Array<'openai' | 'mistral' | 'claude' | 'gemini'>;
   cacheKey?: string;
   caching?: {
     enabled: boolean;
@@ -38,7 +38,7 @@ export interface RequestOptions {
 
 export interface RequestResult<T> {
   data: T;
-  provider?: 'openai' | 'mistral' | 'claude';
+  provider?: 'openai' | 'mistral' | 'claude' | 'gemini';
   fromCache: boolean;
   cacheAge?: number;
   attempt?: number;
@@ -78,12 +78,20 @@ const DEFAULT_PROVIDERS: Record<string, AIProvider> = {
       maxRequestsPerMinute: 20
     },
     defaultTimeoutMs: 20000
+  },
+  gemini: {
+    name: 'gemini',
+    isAvailable: () => !!process.env.GEMINI_API_KEY,
+    rateLimitInfo: {
+      maxRequestsPerMinute: 30
+    },
+    defaultTimeoutMs: 15000
   }
 };
 
 // Default request options
 const DEFAULT_OPTIONS: RequestOptions = {
-  providers: ['openai', 'mistral', 'claude'],
+  providers: ['openai', 'mistral', 'claude', 'gemini'],
   caching: {
     enabled: true,
     ttl: 30 * 24 * 60 * 60 * 1000 // 30 days
