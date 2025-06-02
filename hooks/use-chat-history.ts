@@ -126,38 +126,105 @@ export function useChatHistory() {
       title: `Bible Study - ${formattedDate} ${formattedTime}`,
       messages: [],
       createdAt: now.toISOString(),
-      updatedAt: now.toISOString()
+      updatedAt: now.toISOString(),
+      fullPrompt: '' // Initialize with empty prompt
     }
     
-    // Add the new session to the beginning of the array
+    console.log('Creating new session with ID:', sessionId)
+    
+    // First set the active session ID before updating the sessions array
+    // This ensures the UI knows which session to highlight when the array updates
+    setActiveSessionId(sessionId)
+    
+    // Then add the new session to the beginning of the array
     setSessions(prev => {
       const updated = [newSession, ...prev.slice(0, MAX_SESSIONS - 1)]
       console.log('Updated sessions after create:', updated.length, 'sessions')
       return updated
     })
     
-    setActiveSessionId(newSession.id)
-    console.log('Set active session ID to:', newSession.id)
+    // Log that we've set this session as active
+    console.log('Set active session ID to:', sessionId)
     
-    return newSession.id
+    return sessionId
   }
   
   // Add a question and response to the active session
   const addMessage = (question: string, response: ChatResponseData) => {
+    // Validate that we have both required parameters
+    if (!question || !response) {
+      console.error('Missing required parameters in addMessage:', { question, response })
+      return
+    }
+
+    console.log('Adding message to session, activeSessionId:', activeSessionId)
+    
+    // If no active session, create one and use it
     if (!activeSessionId) {
+      console.log('No active session, creating one')
       const newSessionId = createSession()
       setActiveSessionId(newSessionId)
+      
+      // Since state updates are asynchronous, we need to handle this differently
+      // Create a new message to add to the new session immediately
+      const newMessage: ChatMessage = {
+        question,
+        response,
+        timestamp: new Date().toISOString()
+      }
+      
+      // Create a new session with this message directly
+      setSessions(prev => {
+        // Find the session we just created
+        const newSession = prev.find(s => s.id === newSessionId)
+        if (!newSession) {
+          console.error('Could not find newly created session')
+          return prev
+        }
+        
+        // Create an updated session with the title from the question
+        const title = question.length > 30 ? `${question.substring(0, 30)}...` : question
+        
+        const updatedSessions = prev.map(session => {
+          if (session.id === newSessionId) {
+            return {
+              ...session,
+              title,
+              fullPrompt: question,
+              updatedAt: new Date().toISOString(),
+              messages: [newMessage, ...session.messages]
+            }
+          }
+          return session
+        })
+        
+        console.log('Updated sessions with new message in new session')
+        return updatedSessions
+      })
+      
+      return
     }
     
+    // Create new message object
     const newMessage: ChatMessage = {
       question,
       response,
       timestamp: new Date().toISOString()
     }
     
+    // Update sessions state
     setSessions(prev => {
+      // Check if the active session actually exists in the sessions array
+      const sessionExists = prev.some(s => s.id === activeSessionId)
+      if (!sessionExists) {
+        console.error('Active session not found in sessions array:', activeSessionId)
+        return prev
+      }
+      
       return prev.map(session => {
         if (session.id === activeSessionId) {
+          console.log('Updating session with ID:', session.id)
+          
           // Always update the session title with the first message sent for this session
           // This ensures the title matches what the user first asked
           const title = session.messages.length === 0 
@@ -168,6 +235,8 @@ export function useChatHistory() {
           const fullPrompt = session.messages.length === 0 
             ? question // Store the complete prompt text 
             : session.fullPrompt
+          
+          console.log('Updating session title to:', title)
           
           return {
             ...session,
@@ -180,6 +249,8 @@ export function useChatHistory() {
         return session
       })
     })
+    
+    console.log('Message added to session')
   }
   
   // Switch to a different session
