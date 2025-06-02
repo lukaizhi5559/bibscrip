@@ -214,8 +214,28 @@ export default function HomePage() {
     }
   }, [searchParams, sessions, switchSession, activeSessionId, activeSession])
   
-  // Check if we're on mobile
+  // Media query hook for responsive behavior
   const isMobile = useMediaQuery("(max-width: 768px)")
+  
+  // Apply mobile styles after component mount to avoid hydration mismatch
+  useEffect(() => {
+    const resultsPanel = document.querySelector('[data-mobile-position="true"]')
+    if (resultsPanel) {
+      if (isMobile) {
+        resultsPanel.classList.remove('relative', 'min-h-screen')
+        resultsPanel.classList.add('fixed', 'top-0', 'right-0', 'z-50', 'h-full')
+        
+        // Update transition classes
+        if (resultsOpen) {
+          resultsPanel.classList.remove('w-2/3')
+          resultsPanel.classList.add('w-full')
+        } else {
+          resultsPanel.classList.remove('w-0', 'opacity-0', 'invisible')
+          resultsPanel.classList.add('translate-x-full')
+        }
+      }
+    }
+  }, [isMobile, resultsOpen])
   
   // Auto-resize textarea to fit content
   useEffect(() => {
@@ -821,10 +841,11 @@ export default function HomePage() {
 
       {/* Results panel - fixed overlay on mobile, side-by-side on desktop */}
       <div 
-        className={`${isMobile ? 'fixed top-0 right-0 z-50' : 'relative'} ${isMobile ? 'h-full' : 'min-h-screen'} bg-background border-border overflow-y-auto transition-all duration-300 ease-in-out
+        className={`relative min-h-screen bg-background border-border overflow-y-auto transition-all duration-300 ease-in-out
           ${resultsOpen 
-            ? (isMobile ? 'translate-x-0 w-full' : 'w-2/3 translate-x-0') 
-            : (isMobile ? 'translate-x-full' : 'w-0 opacity-0 invisible')}`}
+            ? 'translate-x-0 w-2/3' 
+            : 'w-0 opacity-0 invisible'}`}
+        data-mobile-position="true"
       >
         <div className="relative h-full pb-[3rem]">
           <Button 
