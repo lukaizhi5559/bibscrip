@@ -10,6 +10,7 @@ import { ChatHistoryProvider } from "@/contexts/chat-history-context"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { cookies } from "next/headers"
 import { LocalStorageInitializer } from "@/components/local-storage-initializer"
+import { Toaster } from "@/components/ui/toaster"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 
@@ -60,6 +61,7 @@ export default async function RootLayout({
               </div>
             </SidebarProvider>
           </ChatHistoryProvider>
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>

@@ -7,9 +7,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { ChatResponseCard, type ChatResponseData, type Verse, type Commentary } from "@/components/chat-response-card"
 import { ResultsLayout } from "@/components/results-layout"
 import { AiTypingIndicator } from "@/components/ai-typing-indicator"
-import { MessageSquare, SendHorizonal, X, AlertCircle, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
+import { MessageSquare, SendHorizonal, X, AlertCircle, ChevronLeft, ChevronRight, RefreshCw, ClipboardCheck } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useSearchParams, useRouter } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
 import { useMediaQuery } from "../hooks/use-media-query"
 import { truncateText } from "@/utils/string-helpers"
 import { useChatHistoryContext } from "@/contexts/chat-history-context"
@@ -46,6 +47,7 @@ const mockResponse: ChatResponseData = {
 export default function HomePage() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { toast } = useToast()
   
   // Initialize chat history from shared context
   const {
@@ -802,8 +804,27 @@ export default function HomePage() {
                   }
                   
                   const url = `${window.location.origin}?${params.toString()}`
-                  navigator.clipboard.writeText(url)
-                  alert('Link copied to clipboard!')
+                  navigator.clipboard.writeText(url).then(() => {
+                    // Create a custom toast element for clipboard success
+                    toast({
+                      title: "Link copied",
+                      description: (
+                        <div className="flex items-center gap-2">
+                          <ClipboardCheck className="h-4 w-4 text-green-500" />
+                          <span>Share URL copied to clipboard</span>
+                        </div>
+                      ),
+                      duration: 3000
+                    })
+                  }).catch(err => {
+                    console.error("Failed to copy:", err)
+                    toast({
+                      title: "Failed to copy",
+                      description: "Could not copy link to clipboard",
+                      variant: "destructive",
+                      duration: 3000
+                    })
+                  })
                 }}
               />
             ) : (
