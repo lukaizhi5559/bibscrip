@@ -384,7 +384,7 @@ export const SidebarGroup = React.forwardRef<HTMLDivElement, React.ComponentProp
         <div
           ref={ref}
           data-sidebar="group"
-          className={cn("relative flex w-full min-w-0 flex-col", className)}
+          className={cn("relative border-sidebar-border flex w-full min-w-0 flex-col", className)}
           {...props}
         >
           {label && (

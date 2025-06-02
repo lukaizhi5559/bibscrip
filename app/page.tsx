@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useMediaQuery } from "../hooks/use-media-query"
 import { truncateText } from "@/utils/string-helpers"
 import { useChatHistoryContext } from "@/contexts/chat-history-context"
+import { PromptHistory } from "@/components/prompt-history"
 
 const mockResponse: ChatResponseData = {
   aiAnswer:
@@ -760,8 +761,8 @@ export default function HomePage() {
               ) : (
                 <Button 
                   type="submit" 
-                  size="icon" 
-                  className="absolute right-3 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full bg-yellow-500 hover:bg-yellow-600 shadow-sm flex items-center justify-center" 
+                  size="icon"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full bg-yellow-500 hover:bg-yellow-600 shadow-sm flex items-center justify-center"
                 >
                   <SendHorizonal className="h-4 w-4 text-primary-foreground" />
                   <span className="sr-only">Ask</span>
@@ -769,14 +770,14 @@ export default function HomePage() {
               )}
               <div className="text-xs text-muted-foreground mt-1">
                 Use <kbd className="px-1 py-0.5 bg-muted rounded">Shift+Enter</kbd> or <kbd className="px-1 py-0.5 bg-muted rounded">Ctrl+Enter</kbd> for line breaks
-              </div>
+            </div>
             </div>
           </form>
-          <div className="mt-3 flex justify-between items-center">
+          <div className="mt-3 mb-5 flex justify-between items-center">
             <p className="text-xs text-muted-foreground">
               BibScrip provides responses based on Scripture and trusted commentary.
             </p>
-            
+
             {/* Always visible toggle button */}
             <Button 
               variant="outline" 
@@ -798,6 +799,11 @@ export default function HomePage() {
               }
             </Button>
           </div>
+
+          {/* Prompt History Component - Added in the red box area */}
+          {/* <div className="mt-1 bg-background/50">
+            <PromptHistory />
+          </div> */}
 
           {error && !isLoading && (
             <div className="mt-12">

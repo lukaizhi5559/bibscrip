@@ -65,8 +65,8 @@ export function HistorySidebar({
   const [clearDialogOpen, setClearDialogOpen] = useState(false)
   
   return (
-    <div className={cn("flex flex-col h-full bg-card border-r", className)}>
-      <div className="flex items-center justify-between px-4 py-3 border-b">
+    <div className={cn("flex flex-col h-full bg-card", className)}>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-sidebar-border">
         <h2 className="text-sm font-medium">Chat History</h2>
         {sessions.length > 0 && (
           <Button
