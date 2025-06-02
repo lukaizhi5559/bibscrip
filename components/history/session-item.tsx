@@ -61,6 +61,7 @@ export function SessionItem({ session, isActive, onClick, onRename, onDelete }: 
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isEditing, setIsEditing] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false) // New state for delete confirmation
   const [titleInput, setTitleInput] = useState(session.fullPrompt || session.title)
   
   // Use a ref to track if we've already auto-activated this session to prevent infinite loops
@@ -131,8 +132,21 @@ export function SessionItem({ session, isActive, onClick, onRename, onDelete }: 
   
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation() // Prevent triggering onClick of the parent
-    console.log('SessionItem: Deleting session', session.id)
+    console.log('SessionItem: Showing delete confirmation for', session.id)
+    setIsDeleting(true)
+  }
+  
+  const confirmDelete = (e: React.MouseEvent) => {
+    e.stopPropagation() // Prevent triggering onClick of the parent
+    console.log('SessionItem: Confirming deletion of session', session.id)
     onDelete(session.id)
+    setIsDeleting(false)
+  }
+  
+  const cancelDelete = (e: React.MouseEvent) => {
+    e.stopPropagation() // Prevent triggering onClick of the parent
+    console.log('SessionItem: Cancelling deletion')
+    setIsDeleting(false)
   }
   
   const handleEdit = (e: React.MouseEvent) => {
@@ -236,29 +250,60 @@ export function SessionItem({ session, isActive, onClick, onRename, onDelete }: 
           )}
         </div>
         
+        {/* Action buttons (only show if not editing) */}
         {!isEditing && (
-          <div 
-            className="flex items-center" 
+          <div
+            className="flex items-center"
             onClick={(e) => e.stopPropagation()}
           >
-            <Button 
-              type="button"
-              variant="ghost" 
-              size="icon" 
-              className="h-6 w-6 session-action-btn" 
-              onClick={handleEdit}
-            >
-              <Pencil className="h-3 w-3" />
-            </Button>
-            <Button 
-              type="button"
-              variant="ghost" 
-              size="icon" 
-              className="h-6 w-6 text-destructive hover:text-destructive/90 session-action-btn" 
-              onClick={handleDeleteClick}
-            >
-              <Trash2 className="h-3 w-3" />
-            </Button>
+            {isDeleting ? (
+              <>
+                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-destructive/30 border border-destructive/70 shadow-sm">
+                  <span className="flex-shrink-0 text-xs text-white font-medium">Delete?</span>
+                  <Button 
+                    type="button"
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-5 w-5 bg-destructive text-white hover:bg-destructive/80 session-action-btn" 
+                    onClick={confirmDelete}
+                    title="Confirm delete"
+                  >
+                    <Check className="h-3 w-3" />
+                  </Button>
+                  <Button 
+                    type="button"
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-5 w-5 bg-background text-foreground session-action-btn hover:bg-muted" 
+                    onClick={cancelDelete}
+                    title="Cancel"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <Button 
+                  type="button"
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-6 w-6 session-action-btn" 
+                  onClick={handleEdit}
+                >
+                  <Pencil className="h-3 w-3" />
+                </Button>
+                <Button 
+                  type="button"
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-6 w-6 text-destructive hover:text-destructive/90 session-action-btn" 
+                  onClick={handleDeleteClick}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </>
+            )}
           </div>
         )}
       </div>
