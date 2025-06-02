@@ -17,7 +17,12 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 export const metadata: Metadata = {
   title: "BibScrip - AI Bible Study",
   description: "Explore the Bible with AI-powered insight, scripture, and study tools.",
-    generator: 'v0.dev'
+  generator: 'v0.dev',
+  icons: [
+    { rel: "icon", url: "/bibscrip-logo.svg", type: "image/svg+xml" },
+    { rel: "apple-touch-icon", url: "/bibscrip-logo.svg", type: "image/svg+xml" },
+    { rel: "shortcut icon", url: "/bibscrip-logo.svg", type: "image/svg+xml" }
+  ]
 }
 
 export default async function RootLayout({

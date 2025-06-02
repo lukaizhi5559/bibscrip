@@ -322,13 +322,36 @@ export default function HomePage() {
   // Check for query parameter on initial load only
   useEffect(() => {
     const q = searchParams.get('q') || ''
+    const idParam = searchParams.get('id') || ''
+    
+    // If we have a session ID in URL, make sure it's active
+    if (idParam) {
+      console.log('Found session ID in URL:', idParam)
+      switchSession(idParam)
+    }
+    
+    // Set the query text from URL if present
     if (q) {
+      console.log('Found query in URL:', q)
       setInputValue(q)
-      // Use setTimeout to ensure this runs after the component is fully mounted
-      setTimeout(() => {
-        const formEvent = new Event('submit') as unknown as FormEvent<HTMLFormElement>
-        handleSubmit(formEvent)
-      }, 0)
+      
+      // Only auto-submit if we have a query but no session ID
+      // If we have both, the session loading logic will handle displaying the content
+      if (!idParam) {
+        // Use setTimeout to ensure this runs after the component is fully mounted
+        setTimeout(() => {
+          // Set flag to prevent URL-triggered session creation
+          isUpdatingUrlRef.current = true
+          
+          const formEvent = new Event('submit') as unknown as FormEvent<HTMLFormElement>
+          handleSubmit(formEvent)
+          
+          // Reset the flag after a small delay
+          setTimeout(() => {
+            isUpdatingUrlRef.current = false
+          }, 100)
+        }, 200) // Slightly longer delay to ensure all state is initialized
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -357,23 +380,33 @@ export default function HomePage() {
     setError(null)
     setResultsOpen(true) // Always open results panel on submit
     
-    // Always create a new session for a new prompt if we don't have one
+    // Only create a new session if there isn't an active one
+    // This allows reusing the current session for multiple prompts
     let currentSessionId = activeSessionId
     if (!currentSessionId) {
-      currentSessionId = createSession() // Store the new session ID
+      currentSessionId = createSession() // Create a new session only when needed
       console.log('Created new session with ID:', currentSessionId)
+    } else {
+      console.log('Reusing existing session with ID:', currentSessionId)
     }
+    
+    // Set flag to prevent URL-triggered session creation
+    isUpdatingUrlRef.current = true
     
     // Update URL with the search query and session ID for shareable links
     const params = new URLSearchParams(searchParams.toString())
-    params.set('q', inputValue)
+    params.set('q', questionText)
     
-    // If we have an active session ID, include it in the URL
-    if (currentSessionId) {
-      params.set('id', currentSessionId)
-    }
+    // Include the new session ID in the URL
+    params.set('id', currentSessionId)
     
+    // Update the URL
     router.push(`?${params.toString()}`)
+    
+    // Reset the flag after a small delay to ensure the URL update effect doesn't trigger
+    setTimeout(() => {
+      isUpdatingUrlRef.current = false
+    }, 100)
     
     // Create an AbortController for timeout handling and cancellation
     const controller = new AbortController()
@@ -395,7 +428,7 @@ export default function HomePage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          question: inputValue,
+          question: questionText,
           timeoutEnabled: true // Tell backend we're handling timeouts
         }),
         signal // Attach the abort signal to the fetch request
@@ -424,28 +457,33 @@ export default function HomePage() {
       }
       
       // Detect content type from the question
-      if (inputValue.toLowerCase().includes('topic') || inputValue.toLowerCase().includes('theme')) {
+      if (questionText.toLowerCase().includes('topic') || questionText.toLowerCase().includes('theme')) {
         setDetectedContentType('topic')
-      } else if (inputValue.toLowerCase().includes('character') || inputValue.toLowerCase().includes('person')) {
+      } else if (questionText.toLowerCase().includes('character') || questionText.toLowerCase().includes('person')) {
         setDetectedContentType('character')
-      } else if (/^\s*[a-zA-Z]+\s+\d+:\d+/.test(inputValue)) {
+      } else if (/^\s*[a-zA-Z]+\s+\d+:\d+/.test(questionText)) {
         setDetectedContentType('verse')
       } else {
         setDetectedContentType('general')
       }
       
-      // Mark data as loaded
+      console.log('Received chat response data:', chatResponseData)
+      
+      // Mark data as loaded - ensure we're setting complete data
       setChatResponse(chatResponseData)
       
-      // Explicitly save to chat history - ensure we have a session first
-      let sessionId = activeSessionId
-      if (!sessionId) {
-        // Create a new session and get its ID
-        sessionId = createSession()
+      // Ensure results panel is open to display the new results
+      setResultsOpen(true)
+      
+      // If we're reusing an existing session, we should still make sure it's active
+      // This covers the case where we might have switched sessions elsewhere
+      if (currentSessionId !== activeSessionId) {
+        switchSession(currentSessionId)
       }
       
       // Force add message to the active session
-      addMessage(inputValue, chatResponseData)
+      console.log('Adding message to session:', currentSessionId)
+      addMessage(questionText, chatResponseData)
       
     } catch (err: any) {
       // Clear the timeout to prevent multiple aborts
@@ -467,7 +505,7 @@ export default function HomePage() {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({ 
-              question: inputValue,
+              question: questionText,
               useFallback: true // Tell backend to use the next provider in the chain
             })
           })
@@ -493,18 +531,32 @@ export default function HomePage() {
           }
           
           // Use the same content type detection as primary request
-          if (inputValue.toLowerCase().includes('topic') || inputValue.toLowerCase().includes('theme')) {
+          if (questionText.toLowerCase().includes('topic') || questionText.toLowerCase().includes('theme')) {
             setDetectedContentType('topic')
-          } else if (inputValue.toLowerCase().includes('character') || inputValue.toLowerCase().includes('person')) {
+          } else if (questionText.toLowerCase().includes('character') || questionText.toLowerCase().includes('person')) {
             setDetectedContentType('character')
-          } else if (/^\s*[a-zA-Z]+\s+\d+:\d+/.test(inputValue)) {
+          } else if (/^\s*[a-zA-Z]+\s+\d+:\d+/.test(questionText)) {
             setDetectedContentType('verse')
           } else {
             setDetectedContentType('general')
           }
           
+          console.log('Received fallback chat response data:', fallbackChatResponseData)
+          
           // Mark data as loaded
           setChatResponse(fallbackChatResponseData)
+          
+          // Ensure results panel is open to display the fallback results
+          setResultsOpen(true)
+          
+          // Only switch session if needed
+          if (currentSessionId !== activeSessionId) {
+            switchSession(currentSessionId)
+          }
+          
+          // Add the fallback response to chat history
+          console.log('Adding fallback response to session:', currentSessionId)
+          addMessage(questionText, fallbackChatResponseData)
           
           // Clear the error since we recovered
           setError(null)
@@ -531,24 +583,36 @@ export default function HomePage() {
   
   // Function to start a new chat - clear state and create new session
   const startNewChat = useCallback(() => {
-    console.log('Starting new chat, clearing UI state')
-    
-    // Clear the UI state
+    // Clear the input and results
     setInputValue('')
-    setLastQuestion(null)
     setChatResponse(null)
-    setResultsOpen(false)
+    setLastQuestion(null)
+    setIsLoading(false)
     setError(null)
+    setDetectedContentType('general')
     
-    // Create a new session
+    // Create a new session and ensure it's active
     const newSessionId = createSession()
-    console.log('Created new session with ID:', newSessionId)
+    console.log('Created new session from New Chat button:', newSessionId)
     
-    // Update URL with the new session ID
+    // Explicitly switch to the new session to make sure it's active
+    switchSession(newSessionId)
+    
+    // Set flag to prevent URL-triggered session creation
+    isUpdatingUrlRef.current = true
+    
+    // Update URL parameters
     const params = new URLSearchParams(searchParams.toString())
-    params.delete('q')  // Remove any existing query parameter
+    // Remove any existing query parameter
+    params.delete('q')
+    // Add the new session ID to URL
     params.set('id', newSessionId)  // Add the new session ID to URL
     router.push(`?${params.toString()}`)
+    
+    // Reset the flag after a small delay
+    setTimeout(() => {
+      isUpdatingUrlRef.current = false
+    }, 100)
     
     // Reset document title
     document.title = 'BibScrip - AI Bible Study'
