@@ -66,13 +66,11 @@ export function useChatHistory() {
       const loadedSessions = loadSessions()
       
       if (loadedSessions.length > 0) {
-        console.log(`Loaded ${loadedSessions.length} sessions`)
         setSessions(loadedSessions)
         
-        // Set active session to the most recent one if not already set
-        if (!activeSessionId && loadedSessions.length > 0) {
-          setActiveSessionId(loadedSessions[0].id)
-        }
+        // Don't automatically set active session on initial load
+        // This allows URL parameters to control which session is loaded
+        console.log('Deferring active session selection to URL parameters')
       }
     } catch (error) {
       console.error('Error loading sessions:', error)
@@ -191,7 +189,6 @@ export function useChatHistory() {
   
   // Update session title
   const updateSessionTitle = (sessionId: string, newTitle: string) => {
-    console.log('Updating session title:', sessionId, newTitle)
     setSessions(prev => {
       const updated = prev.map(session => {
         if (session.id === sessionId) {
@@ -209,10 +206,8 @@ export function useChatHistory() {
   
   // Delete a session
   const deleteSession = (sessionId: string) => {
-    console.log('Deleting session:', sessionId)
     setSessions(prev => {
       const filteredSessions = prev.filter(session => session.id !== sessionId)
-      console.log('Sessions after deletion:', filteredSessions)
       
       // If we deleted the active session, set the active session to the most recent one
       if (sessionId === activeSessionId && filteredSessions.length > 0) {

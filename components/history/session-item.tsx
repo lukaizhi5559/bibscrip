@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import React, { useState, useEffect, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { ChatSession } from '@/hooks/use-chat-history'
 import { Button } from '@/components/ui/button'
 import { MessageSquare, Pencil, Check, X, Trash2 } from 'lucide-react'
@@ -14,6 +14,41 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
+// Helper function to format long text with line breaks at word boundaries
+const formatLongText = (text: string, charsPerLine: number = 40): React.ReactNode => {
+  if (!text || text.length <= charsPerLine) return text;
+  
+  // Split the text into words
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let currentLine = '';
+  
+  // Build lines respecting word boundaries
+  words.forEach(word => {
+    // If adding this word would exceed the line length
+    if ((currentLine + ' ' + word).length > charsPerLine && currentLine !== '') {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      // Add the word to the current line with a space if not the first word
+      currentLine = currentLine === '' ? word : `${currentLine} ${word}`;
+    }
+  });
+  
+  // Add the last line if not empty
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+  
+  // Join lines with line breaks
+  return lines.map((line, index) => (
+    <React.Fragment key={index}>
+      {index > 0 && <br />}
+      {line}
+    </React.Fragment>
+  ));
+}
+
 interface SessionItemProps {
   session: ChatSession
   isActive: boolean
@@ -24,13 +59,64 @@ interface SessionItemProps {
 
 export function SessionItem({ session, isActive, onClick, onRename, onDelete }: SessionItemProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [isEditing, setIsEditing] = useState(false)
   const [titleInput, setTitleInput] = useState(session.fullPrompt || session.title)
+  
+  // Use a ref to track if we've already auto-activated this session to prevent infinite loops
+  const hasAutoActivatedRef = useRef(false)
+  
+  // Check URL parameters to correctly highlight active session - but don't log it
+  const urlSessionId = searchParams.get('id')
+  
+  // Consider a session active if either:
+  // 1. It was marked active by parent component (context-based) OR
+  // 2. It matches the URL parameter 'id'
+  const shouldBeActive = isActive || (urlSessionId === session.id)
+  
+  // Direct URL-based session activation - runs only on initial mount to avoid loops
+  // Use a dedicated useEffect with an empty dependency array to ensure it runs exactly once
+  useEffect(() => {
+    // We need the URL to match this session's ID AND the session must not already be active
+    if (urlSessionId === session.id && !isActive) {
+      // Set a short delay to ensure the app is fully initialized before activating
+      const timer = setTimeout(() => {
+        // Double-check that we still need to activate (may have changed during the timeout)
+        if (!hasAutoActivatedRef.current && !isActive) {
+          // Lock this to prevent any possibility of running again
+          hasAutoActivatedRef.current = true;
+          
+          // Call the click handler to activate this session
+          onClick();
+        }
+      }, 100); // Slightly longer delay for more stability
+      
+      // Clean up timer if component unmounts before it fires
+      return () => clearTimeout(timer);
+    }
+  }, []); // Empty dependency array = run once on mount
   
   const formattedDate = new Date(session.updatedAt).toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric'
   })
+  
+  const handleClick = () => {
+    if (!isEditing) {
+      // Log the click for debugging
+      console.log('SessionItem click handler for', session.id)
+      
+      // Emit custom event to ensure results panel is opened
+      const event = new CustomEvent('bibscrip:showresults', { 
+        bubbles: true, 
+        detail: { sessionId: session.id } 
+      })
+      document.dispatchEvent(event)
+      
+      // Call the provided onClick handler to switch sessions
+      onClick()
+    }
+  }
   
   const handleRename = () => {
     console.log('SessionItem: Renaming session', session.id, 'to', titleInput)
@@ -54,6 +140,7 @@ export function SessionItem({ session, isActive, onClick, onRename, onDelete }: 
     setIsEditing(true)
   }
   
+  // Handle session item clicks - needed for session selection
   const handleSessionClick = (e: React.MouseEvent) => {
     // Don't proceed if we're editing or clicking on action buttons
     if (isEditing || (e.target as HTMLElement).closest('.session-action-btn')) {
@@ -64,8 +151,14 @@ export function SessionItem({ session, isActive, onClick, onRename, onDelete }: 
     
     console.log('SessionItem clicked:', session.id)
     
+    // Emit custom event to ensure results panel is opened
+    const event = new CustomEvent('bibscrip:showresults', { 
+      bubbles: true, 
+      detail: { sessionId: session.id } 
+    })
+    document.dispatchEvent(event)
+    
     // Call the onClick handler to update the context state
-    // The page component will handle URL updates based on the active session
     onClick()
   }
   
@@ -73,7 +166,7 @@ export function SessionItem({ session, isActive, onClick, onRename, onDelete }: 
     <div 
       className={cn(
         "group flex flex-col w-full rounded-md p-2 cursor-pointer hover:bg-muted/50 transition-colors relative",
-        isActive && "bg-muted"
+        shouldBeActive && "bg-muted"
       )}
       onClick={isEditing ? undefined : handleSessionClick}
     >
@@ -129,8 +222,10 @@ export function SessionItem({ session, isActive, onClick, onRename, onDelete }: 
                       {session.title.length > 15 ? `${session.title.substring(0, 15)}...` : session.fullPrompt}
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent side="right">
-                    <p>{session.fullPrompt || session.title}</p>
+                  <TooltipContent side="right" className="max-w-[300px]">
+                    <p className="text-xs">
+                      {formatLongText(session.fullPrompt || session.title, 40)}
+                    </p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

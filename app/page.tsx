@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ChatResponseCard, type ChatResponseData, type Verse, type Commentary } from "@/components/chat-response-card"
 import { ResultsLayout } from "@/components/results-layout"
 import { AiTypingIndicator } from "@/components/ai-typing-indicator"
-import { SendHorizonal, AlertCircle, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
+import { MessageSquare, SendHorizonal, X, AlertCircle, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useMediaQuery } from "../hooks/use-media-query"
@@ -57,6 +57,9 @@ export default function HomePage() {
     switchSession
   } = useChatHistoryContext()
   
+  // Reference to AbortController for cancelling requests
+  const abortControllerRef = useRef<AbortController | null>(null)
+  
   const [inputValue, setInputValue] = useState<string>("")
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [chatResponse, setChatResponse] = useState<ChatResponseData | null>(null)
@@ -64,19 +67,36 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null)
   const [detectedContentType, setDetectedContentType] = useState<'topic' | 'character' | 'verse' | 'general'>('general')
   const [resultsOpen, setResultsOpen] = useState(false)
-  const [dataLoaded, setDataLoaded] = useState(false)
   const [lastQuestion, setLastQuestion] = useState<string | null>(null)
   
   // Update document title with truncated question when a search is performed
   useEffect(() => {
-    if (inputValue && dataLoaded) {
-      // Set page title with truncated question (max 50 chars)
-      document.title = truncateText(inputValue, 50) + ' | BibScrip';
-    } else {
-      // Reset to default title when no search is active
-      document.title = 'BibScrip - AI Bible Study';
+    if (lastQuestion) {
+      document.title = `${truncateText(lastQuestion, 30)} - BibScrip`
     }
-  }, [inputValue, dataLoaded])
+  }, [lastQuestion])
+  
+  // Effect to respond to activeSessionId changes and ensure results are shown
+  useEffect(() => {
+    if (activeSessionId && activeSession) {
+      // If this session has messages, make sure the results panel is open and content is loaded
+      if (activeSession.messages && activeSession.messages.length > 0) {
+        // Open the results panel if it's not already open
+        if (!resultsOpen) {
+          // setResultsOpen(true)
+        }
+        
+        // Load the session's first message as the last question
+        const questionText = activeSession.messages[0].question
+        setLastQuestion(questionText)
+        
+        // If we don't already have a chat response, recreate it from the message
+        if (!chatResponse && activeSession.messages[0].response) {
+          setChatResponse(activeSession.messages[0].response)
+        }
+      }
+    }
+  }, [activeSessionId, activeSession, resultsOpen, chatResponse])
   
   // Track the last processed session ID to prevent loops
   const lastProcessedSessionIdRef = useRef<string>('')
@@ -94,16 +114,23 @@ export default function HomePage() {
       return
     }
     
-    // Get chat session ID from URL, if available
+    // Get chat session ID and query from URL, if available
     const idParam = searchParams.get('id') || ''
     const queryParam = searchParams.get('q') || ''
     
-    // Only proceed if the URL session ID is different from the active session
-    // and different from what we last processed to avoid loops
+    // Force results panel open when loading via URL with sessionID
+    if (idParam) {
+      setResultsOpen(true)
+    }
+    
+    // Handle direct URL access with session ID
     if (idParam && idParam !== activeSessionId && idParam !== lastProcessedSessionIdRef.current) {
       console.log('Loading chat session from URL parameter:', idParam)
       lastProcessedSessionIdRef.current = idParam
       sessionSwitchSourceRef.current = 'url'
+      
+      // FORCE RESULTS PANEL OPEN for URL direct access
+      setResultsOpen(true)
       
       // Check if the session ID exists in our sessions list
       const targetSession = sessions.find(session => session.id === idParam)
@@ -113,30 +140,74 @@ export default function HomePage() {
         if (targetSession.messages.length > 0) {
           const firstMessage = targetSession.messages[0]
           setLastQuestion(firstMessage.question)
-          setChatResponse(firstMessage.response)
-          setDataLoaded(true)
-          setResultsOpen(true)
-          setInputValue(firstMessage.question)
+          
+          // Ensure chat response is properly set with the full object structure
+          if (firstMessage.response) {            
+            // Deep clone the response data to ensure all properties are preserved
+            // This helps prevent reference issues with the original data
+            const responseData = {
+              aiAnswer: firstMessage.response.aiAnswer || '',
+              referencedVerses: Array.isArray(firstMessage.response.referencedVerses) ? 
+                firstMessage.response.referencedVerses.map(v => ({...v})) : [],
+              commentaryExcerpts: Array.isArray(firstMessage.response.commentaryExcerpts) ? 
+                firstMessage.response.commentaryExcerpts.map(c => ({...c})) : []
+            }
+            
+            console.log('Structured response data:', JSON.stringify(responseData).substring(0, 100) + '...')
+            setChatResponse(responseData)
+          } else {
+            console.warn('Session has message but no response data')
+            setChatResponse(null)
+          }
+          
+          // setInputValue(firstMessage.question)
         } else {
           // Clear UI for an empty session
           setInputValue('')
           setLastQuestion(null)
           setChatResponse(null)
-          setDataLoaded(false)
           setError(null)
         }
         
-        // Switch the session in the context
-        // We'll mark this as a URL-initiated switch before calling switchSession
-        // to prevent any additional URL updates
+        // CRITICAL FIX: First update the active session ID directly in the context
+        // This ensures the sidebar will highlight the correct session
         console.log('Switching to session from URL parameter:', idParam)
+        
+        // Force the activeSessionId update to be immediate and explicit
         switchSession(idParam)
+        
+        // Double check that the active session is correctly set after a brief delay
+        setTimeout(() => {
+          if (activeSessionId !== idParam) {
+            console.log('Session ID mismatch after update, forcing activeSessionId update', { 
+              current: activeSessionId, 
+              expected: idParam 
+            })
+            switchSession(idParam)
+          } else {
+            console.log('Session ID successfully updated to', activeSessionId)
+          }
+        }, 100)
       } else {
         console.warn('Chat session ID not found:', idParam)
+        // Try again in 500ms in case sessions are still loading
+        setTimeout(() => {
+          const delayedTargetSession = sessions.find(session => session.id === idParam)
+          if (delayedTargetSession) {
+            console.log('Found session after delay:', idParam)
+            sessionSwitchSourceRef.current = 'url'
+            switchSession(idParam)
+          }
+        }, 500)
       }
     } else if (!idParam && queryParam && !activeSessionId) {
       // If only the query parameter exists and no active session, set the input value
       setInputValue(queryParam)
+    } else if (!idParam && !activeSessionId && sessions.length > 0) {
+      // Fallback: If no URL session ID and no active session, select the first session
+      console.log('No session ID in URL and no active session. Selecting first session.')
+      sessionSwitchSourceRef.current = 'url' // Mark as URL-initiated to prevent URL update loop
+      switchSession(sessions[0].id)
     }
   }, [searchParams, sessions, switchSession, activeSessionId, activeSession])
   
@@ -158,10 +229,6 @@ export default function HomePage() {
   useEffect(() => {
     if (!activeSession) return;
     
-    console.log('Active session changed, updating UI and URL:', activeSessionId);
-    console.log('Session switch source:', sessionSwitchSourceRef.current);
-    console.log('Active session messages:', activeSession.messages.length);
-    
     // Set the session switch source to 'click' if it's not already set
     // This helps ensure URL updates work correctly for all session changes
     if (!sessionSwitchSourceRef.current) {
@@ -180,64 +247,66 @@ export default function HomePage() {
     if (activeSession.messages.length > 0) {
       const activeMessage = activeSession.messages[0]; // Get the most recent message
       console.log('Loading message:', activeMessage.question);
-      setInputValue(activeMessage.question);
+      // setInputValue(activeMessage.question);
       setLastQuestion(activeMessage.question);
-      setChatResponse(activeMessage.response);
-      setDataLoaded(true);
+      
+      // FORCE RESULTS PANEL OPEN for consistency with URL access
+      setResultsOpen(true);
+      
+      // Ensure chat response is properly set with the full object structure
+      if (activeMessage.response) {  
+        // Deep clone the response data to ensure all properties are preserved
+        const responseData = {
+          aiAnswer: activeMessage.response.aiAnswer || '',
+          referencedVerses: Array.isArray(activeMessage.response.referencedVerses) ? 
+            activeMessage.response.referencedVerses.map(v => ({...v})) : [],
+          commentaryExcerpts: Array.isArray(activeMessage.response.commentaryExcerpts) ? 
+            activeMessage.response.commentaryExcerpts.map(c => ({...c})) : []
+        };
+        
+        console.log('Structured response data:', JSON.stringify(responseData).substring(0, 100) + '...');
+        setChatResponse(responseData);
+      } else {
+        console.warn('Active session has message but missing response data');
+        setChatResponse(null);
+      }
+      
       setResultsOpen(true);
     } else {
       // Clear UI for a new empty session
       setInputValue('');
       setLastQuestion(null);
       setChatResponse(null);
-      setDataLoaded(false);
       setError(null);
     }
     
-    // Update URL in any of these cases:
-    // 1. The change was triggered by a click (not URL) OR
-    // 2. The active session ID doesn't match the URL
-    if (sessionSwitchSourceRef.current !== 'url' || currentIdParam !== activeSessionId) {
-      console.log('Session changed in state, updating UI and URL');
+    // SIMPLIFIED APPROACH: Only update the URL if this was explicitly triggered by a user click
+    // and the URL doesn't already match the current session
+    if (sessionSwitchSourceRef.current === 'click' && currentIdParam !== activeSessionId) {
+      // Set or clear ID parameter based on active session
+      if (activeSessionId) {
+        params.set('id', activeSessionId);
+      } else {
+        params.delete('id');
+      }
       
-      // Update URL parameters
+      // Only include query param for sessions with messages
       if (activeSession.messages.length > 0) {
-        if (activeSessionId) {
-          params.set('id', activeSessionId);
-        }
         params.set('q', activeSession.messages[0].question);
       } else {
-        // Update URL parameters
-        if (activeSessionId) {
-          params.set('id', activeSessionId);
-        }
         params.delete('q');
       }
       
-      // Mark that we're updating the URL to prevent URL effect from processing
+      // Block URL-triggered effects during this update
       isUpdatingUrlRef.current = true;
       
-      // Log URL update for debugging
-      console.log('Updating URL params:', { 
-        from: currentIdParam, 
-        to: activeSessionId, 
-        source: sessionSwitchSourceRef.current 
-      });
-      
-      // Always ensure sessionSwitchSourceRef is set for the next update
-      if (sessionSwitchSourceRef.current !== 'url') {
-        sessionSwitchSourceRef.current = 'click';
-      }
-      
-      // Update the URL without causing a full page reload
-      console.log('Updating URL to match active session:', activeSessionId);
+      // Push URL update
       router.push(`?${params.toString()}`, { scroll: false });
       
-      // Reset the flag after a short delay to allow the URL update to complete
+      // Reset flags after URL update is complete (use slightly longer timeout for safety)
       setTimeout(() => {
         isUpdatingUrlRef.current = false;
-        // Also clear the session source after URL update completes
-        // This ensures future session changes are properly tracked
+        // Clear the source to prepare for next change
         if (sessionSwitchSourceRef.current === 'click') {
           sessionSwitchSourceRef.current = null;
         }
@@ -283,14 +352,12 @@ export default function HomePage() {
     setLastQuestion(questionText)
     setInputValue("") // Clear the textarea immediately
     setIsLoading(true)
-    setDataLoaded(false)
     setError(null)
     setResultsOpen(true) // Always open results panel on submit
     
     // Always create a new session for a new prompt if we don't have one
     let currentSessionId = activeSessionId
     if (!currentSessionId) {
-      console.log('Creating new session for prompt')
       currentSessionId = createSession() // Store the new session ID
       console.log('Created new session with ID:', currentSessionId)
     }
@@ -306,9 +373,12 @@ export default function HomePage() {
     
     router.push(`?${params.toString()}`)
     
-    // Create an AbortController for timeout handling
+    // Create an AbortController for timeout handling and cancellation
     const controller = new AbortController()
     const { signal } = controller
+    
+    // Store the controller in the ref for cancel button access
+    abortControllerRef.current = controller
     
     // Set a timeout to abort the request if it takes too long
     const timeoutId = setTimeout(() => {
@@ -363,7 +433,6 @@ export default function HomePage() {
       }
       
       // Mark data as loaded
-      setDataLoaded(true)
       setChatResponse(chatResponseData)
       
       // Explicitly save to chat history - ensure we have a session first
@@ -371,11 +440,9 @@ export default function HomePage() {
       if (!sessionId) {
         // Create a new session and get its ID
         sessionId = createSession()
-        console.log('Created new session with ID:', sessionId)
       }
       
       // Force add message to the active session
-      console.log('Adding message to session:', sessionId, inputValue.substring(0, 20) + '...')
       addMessage(inputValue, chatResponseData)
       
     } catch (err: any) {
@@ -435,7 +502,6 @@ export default function HomePage() {
           }
           
           // Mark data as loaded
-          setDataLoaded(true)
           setChatResponse(fallbackChatResponseData)
           
           // Clear the error since we recovered
@@ -450,7 +516,10 @@ export default function HomePage() {
         setError(err.message || 'Failed to get answer. Please try again.')
       }
     } finally {
+      // Clear the loading state and reset the AbortController
       setIsLoading(false)
+      abortControllerRef.current = null
+      clearTimeout(timeoutId)
     }
   }
 
@@ -466,7 +535,6 @@ export default function HomePage() {
     setInputValue('')
     setLastQuestion(null)
     setChatResponse(null)
-    setDataLoaded(false)
     setResultsOpen(false)
     setError(null)
     
@@ -489,6 +557,17 @@ export default function HomePage() {
     }
   }, [createSession, router, searchParams])
   
+  // Handle cancellation of API request
+  const handleCancelRequest = useCallback(() => {
+    if (abortControllerRef.current) {
+      console.log('Cancelling API request')
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+      setIsLoading(false)
+      setError('Request cancelled')
+    }
+  }, [])
+  
   // Listen for custom new chat event from sidebar
   useEffect(() => {
     const handleNewChatEvent = () => {
@@ -504,6 +583,36 @@ export default function HomePage() {
       document.removeEventListener('bibscrip:newchat', handleNewChatEvent)
     }
   }, [startNewChat])
+  
+  // Listen for show results event from session items
+  useEffect(() => {
+    // Create event handler for the show results event
+    const handleShowResultsEvent = (e: CustomEvent) => {
+      console.log('Received show results event for session:', e.detail?.sessionId)
+      
+      // Open the results panel
+      setResultsOpen(true)
+      
+      // If we have an active session and messages but no chat response,
+      // attempt to load the chat response from the session
+      if (activeSessionId && activeSession && activeSession.messages && activeSession.messages.length > 0 && !chatResponse) {
+        const firstMessage = activeSession.messages[0]
+        if (firstMessage && firstMessage.response) {
+          console.log('Loading chat response from session')
+          setChatResponse(firstMessage.response)
+          setLastQuestion(firstMessage.question)
+        }
+      }
+    }
+    
+    // Add event listener with type assertion
+    document.addEventListener('bibscrip:showresults', handleShowResultsEvent as EventListener)
+    
+    // Clean up
+    return () => {
+      document.removeEventListener('bibscrip:showresults', handleShowResultsEvent as EventListener)
+    }
+  }, [activeSessionId, activeSession, chatResponse])
 
   const placeholderText = `Ask anything about Scripture, theology, or life.`;
 
@@ -562,15 +671,36 @@ export default function HomePage() {
                 className="min-h-[100px] text-base shadow-sm focus-visible:ring-0 border-yellow-500/50 focus-visible:border-yellow-500 pr-14 resize-none rounded-xl py-3 px-4 overflow-hidden"
                 aria-label="Ask a question about the Bible"
               />
-              <Button 
-                type="submit" 
-                size="icon" 
-                className="absolute right-3 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full bg-yellow-500 hover:bg-yellow-600 shadow-sm flex items-center justify-center" 
-                disabled={isLoading}
-              >
-                <SendHorizonal className="h-4 w-4 text-primary-foreground" />
-                <span className="sr-only">Ask</span>
-              </Button>
+              {isLoading ? (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                  {/* Cancel button */}
+                  <Button 
+                    type="button" 
+                    size="icon" 
+                    variant="ghost"
+                    className="h-8 w-8 rounded-full hover:bg-muted flex items-center justify-center text-destructive hover:text-destructive" 
+                    onClick={handleCancelRequest}
+                    title="Cancel request"
+                  >
+                    <X className="h-4 w-4" />
+                    <span className="sr-only">Cancel</span>
+                  </Button>
+                  
+                  {/* Loading indicator */}
+                  <div className="h-9 w-9 rounded-full bg-yellow-500 shadow-sm flex items-center justify-center animate-pulse">
+                    <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  </div>
+                </div>
+              ) : (
+                <Button 
+                  type="submit" 
+                  size="icon" 
+                  className="absolute right-3 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full bg-yellow-500 hover:bg-yellow-600 shadow-sm flex items-center justify-center" 
+                >
+                  <SendHorizonal className="h-4 w-4 text-primary-foreground" />
+                  <span className="sr-only">Ask</span>
+                </Button>
+              )}
               <div className="text-xs text-muted-foreground mt-1">
                 Use <kbd className="px-1 py-0.5 bg-muted rounded">Shift+Enter</kbd> or <kbd className="px-1 py-0.5 bg-muted rounded">Ctrl+Enter</kbd> for line breaks
               </div>
@@ -648,14 +778,15 @@ export default function HomePage() {
               <ResultsLayout 
                 question={lastQuestion || inputValue}
                 aiResponse={chatResponse.aiAnswer}
-                verses={chatResponse.referencedVerses.map(verse => ({
-                  // ResultsLayout expects 'ref' according to its BibleVerse interface
-                  ref: verse.reference, // Use the transformed 'reference' property
-                  text: verse.text,
-                  translation: verse.translation || 'Unknown',
-                  link: verse.link || '#',
-                  source: 'Bible API'
-                }))}
+                verses={Array.isArray(chatResponse.referencedVerses) ? 
+                  chatResponse.referencedVerses.map(verse => ({
+                    // ResultsLayout expects 'ref' according to its BibleVerse interface
+                    ref: verse.reference || (verse as any).ref || '', // Type assertion to handle potential ref property
+                    text: verse.text || '',
+                    translation: verse.translation || 'Unknown',
+                    link: verse.link || '#',
+                    source: 'Bible API'
+                  })) : []}
                 loading={isLoading}
                 chatResponse={chatResponse}
                 detectedContentType={detectedContentType}

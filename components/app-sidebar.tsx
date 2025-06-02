@@ -133,7 +133,23 @@ export function AppSidebar({
             if (isMobile && setOpenMobile) setOpenMobile(false)
           }}
           onSwitchSession={(sessionId) => {
+            // First switch to the selected session in the context
             switchSession(sessionId)
+            
+            // Update the URL with the session ID to ensure URL and state are in sync
+            const params = new URLSearchParams(window.location.search)
+            params.set('id', sessionId)
+            
+            // If the session has messages, also set the query parameter
+            const session = sessions.find(s => s.id === sessionId)
+            if (session && session.messages && session.messages.length > 0) {
+              params.set('q', session.messages[0].question)
+            }
+            
+            // Update the URL without a page reload
+            window.history.pushState({}, '', `?${params.toString()}`)
+            
+            // Close sidebar on mobile after selecting a session
             if (isMobile && setOpenMobile) setOpenMobile(false)
           }}
           onUpdateSessionTitle={updateSessionTitle}
