@@ -249,14 +249,16 @@ export default function VerseResourceTabs({ verse, defaultTab = 'text' }: VerseR
           className={`py-2 px-1 rounded-md text-sm transition-colors ${activeTab === 'text' ? 'bg-background shadow-sm font-medium' : 'hover:bg-muted-foreground/10'}`}
           onClick={() => setActiveTab('text')}
         >
-          Verse Text
+          <span className="hidden sm:inline">Verse Text</span>
+          <span className="sm:hidden">Text</span>
         </button>
         <div className="relative">
           <button 
             className={`w-full py-2 px-1 rounded-md text-sm transition-colors ${activeTab === 'biblegateway' ? 'bg-background shadow-sm font-medium' : 'hover:bg-muted-foreground/10'}`}
             onClick={() => setActiveTab('biblegateway')}
           >
-            BibleGateway
+            <span className="hidden sm:inline">BibleGateway</span>
+            <span className="sm:hidden">BG</span>
           </button>
           <button 
             className="absolute top-1 right-1 p-1 opacity-70 hover:opacity-100 text-muted-foreground hover:text-foreground rounded-full"
@@ -274,7 +276,8 @@ export default function VerseResourceTabs({ verse, defaultTab = 'text' }: VerseR
             className={`w-full py-2 px-1 rounded-md text-sm transition-colors ${activeTab === 'biblehub' ? 'bg-background shadow-sm font-medium' : 'hover:bg-muted-foreground/10'}`}
             onClick={() => setActiveTab('biblehub')}
           >
-            BibleHub
+            <span className="hidden sm:inline">BibleHub</span>
+            <span className="sm:hidden">BH</span>
           </button>
           <button 
             className="absolute top-1 right-1 p-1 opacity-70 hover:opacity-100 text-muted-foreground hover:text-foreground rounded-full"
@@ -292,7 +295,8 @@ export default function VerseResourceTabs({ verse, defaultTab = 'text' }: VerseR
             className={`w-full py-2 px-1 rounded-md text-sm transition-colors ${activeTab === 'blueletterbible' ? 'bg-background shadow-sm font-medium' : 'hover:bg-muted-foreground/10'}`}
             onClick={() => setActiveTab('blueletterbible')}
           >
-            BlueLetterBible
+            <span className="hidden sm:inline">BlueLetterBible</span>
+            <span className="sm:hidden">BLB</span>
           </button>
           <button 
             className="absolute top-1 right-1 p-1 opacity-70 hover:opacity-100 text-muted-foreground hover:text-foreground rounded-full"

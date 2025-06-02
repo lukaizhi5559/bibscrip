@@ -294,33 +294,29 @@ export function ResultsLayout({
     <div className="w-full max-w-4xl py-6 relative h-full overflow-y-auto results-layout">
       <ScrollToTopButton />
       {/* Main question display with truncation for long questions */}
-      <h1 className="text-2xl font-bold mb-4" title={question} id="results-title">{truncateText(question, 100)}</h1>
+      <h1 className="text-2xl font-bold mb-4 pl-10" title={question} id="results-title">{truncateText(question, 100)}</h1>
       
       {/* Tabs for different content sections */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="w-full mb-6">
           <TabsTrigger value="answer" data-value="answer" className="flex-1">
-            <MessageSquare className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Your Answer</span>
-            <span className="sm:hidden">Answer</span>
+            <MessageSquare className="h-4 w-4 mr-0 sm:mr-2" />
+            <span className="sr-only sm:not-sr-only sm:inline-block">Your Answer</span>
           </TabsTrigger>
           <TabsTrigger id="bible-verses-tab" value="verses" data-value="verses" className="flex-1">
-            <Book className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Bible Verses</span>
-            <span className="sm:hidden">Verses</span>
+            <Book className="h-4 w-4 mr-0 sm:mr-2" />
+            <span className="sr-only sm:not-sr-only sm:inline-block">Bible Verses</span>
             {verses.length > 0 && (
               <Badge variant="secondary" className="ml-1">{verses.length}</Badge>
             )}
           </TabsTrigger>
           <TabsTrigger value="videos" data-value="videos" className="flex-1">
-            <Video className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Videos</span>
-            <span className="sm:hidden">Videos</span>
+            <Video className="h-4 w-4 mr-0 sm:mr-2" />
+            <span className="sr-only sm:not-sr-only sm:inline-block">Videos</span>
           </TabsTrigger>
           <TabsTrigger value="resources" data-value="resources" className="flex-1">
-            <BookOpen className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Resources</span>
-            <span className="sm:hidden">More</span>
+            <BookOpen className="h-4 w-4 mr-0 sm:mr-2" />
+            <span className="sr-only sm:not-sr-only sm:inline-block">Resources</span>
           </TabsTrigger>
         </TabsList>
         

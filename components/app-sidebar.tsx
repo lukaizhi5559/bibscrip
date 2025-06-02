@@ -27,6 +27,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightOpen,
+  Menu
 } from "lucide-react"
 import { HistorySidebar } from "@/components/history/history-sidebar"
 import { useChatHistoryContext } from "@/contexts/chat-history-context"
@@ -108,7 +109,7 @@ export function AppSidebar({
                 className="text-sidebar-foreground hover:bg-sidebar-accent"
                 aria-label="Open sidebar"
               >
-                <PanelLeftOpen className="h-5 w-5" />
+                <PanelLeftOpen className="h-5 w-5" /> 
               </Button>
             </div>
           )}

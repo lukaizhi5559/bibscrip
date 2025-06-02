@@ -174,7 +174,8 @@ export function DevotionalCard({
         </Button>
         
         <Button variant="secondary" size="sm">
-          Start Your Own Devotional
+          <span className="sr-only sm:not-sr-only sm:inline-block">Start Your Own Devotional</span>
+          <span className="sm:sr-only">Devotional</span>
         </Button>
         
         <Button 

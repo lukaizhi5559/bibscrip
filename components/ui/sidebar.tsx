@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { type VariantProps, cva } from "class-variance-authority"
-import { PanelLeft, ChevronDown, X, ChevronLeft, ChevronRight } from "lucide-react" // Added MenuIconLucide for potential use
+import { ChevronDown, X, ChevronRight,  Menu } from "lucide-react" // Added MenuIconLucide for potential use
 
 import { useMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
@@ -270,7 +270,7 @@ export const SidebarTrigger = React.forwardRef<React.ElementRef<typeof Button>, 
         aria-controls="mobile-sidebar"
         {...props}
       >
-        {state === "expanded" ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+        {state === "expanded" ? <Menu className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         <span className="sr-only">{state === "expanded" ? "Collapse Sidebar" : "Expand Sidebar"}</span>
       </Button>
     )
@@ -384,7 +384,7 @@ export const SidebarGroup = React.forwardRef<HTMLDivElement, React.ComponentProp
         <div
           ref={ref}
           data-sidebar="group"
-          className={cn("relative flex w-full min-w-0 flex-col", className)}
+          className={cn("relative border-sidebar-border flex w-full min-w-0 flex-col", className)}
           {...props}
         >
           {label && (

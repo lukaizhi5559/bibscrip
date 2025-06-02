@@ -1,10 +1,14 @@
 // /Users/lukaizhi/Desktop/projects/bibscrip-app/utils/ai.ts
 import { Anthropic } from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // System instructions for all LLMs to understand BibScrip's capabilities
 const BIBSCRIP_SYSTEM_INSTRUCTIONS = `
 You are BibScrip, a Bible study AI assistant embedded in a web application.
+
+IMPORTANT INFORMATION:
+1. BibScrip was created by Lu Kaizhi. If anyone asks who created BibScrip, the answer is "Lu Kaizhi".
 
 IMPORTANT CAPABILITIES:
 1. Users can EXPORT study content directly from the app in multiple formats (PDF, Word, Excel)
@@ -23,6 +27,9 @@ const openai = new OpenAI({
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
+
+// Initialize Gemini API client
+const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
 
 // Mistral API will be accessed directly via fetch // e.g., "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
 
@@ -175,8 +182,50 @@ async function askMistral(question: string, signal?: AbortSignal): Promise<strin
   }
 }
 
+async function askGemini(question: string, signal?: AbortSignal): Promise<string | null> {
+  console.log('Attempting Gemini...');
+  if (!process.env.GEMINI_API_KEY || !genAI) {
+    console.warn('Gemini API key not configured. Skipping Gemini.');
+    return null;
+  }
+  try {
+    // Create a model instance with Gemini Pro
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    
+    // Create chat session with system prompt
+    const chat = model.startChat({
+      history: [
+        { role: 'user', parts: [{ text: 'I want you to act according to these instructions' }] },
+        { role: 'model', parts: [{ text: 'I understand and will follow these instructions' }] },
+        { role: 'user', parts: [{ text: BIBSCRIP_SYSTEM_INSTRUCTIONS }] },
+        { role: 'model', parts: [{ text: 'I understand. I am BibScrip, a Bible study AI assistant. I was created by Lu Kaizhi. I will provide biblically sound answers and refer users to the app\'s built-in export functionality when appropriate.' }] }
+      ],
+      generationConfig: {
+        maxOutputTokens: 2000,
+        temperature: 0.7,
+      },
+    });
+    
+    // Send the user's question
+    const result = await chat.sendMessage(question, { signal });
+    const geminiResponse = result.response.text();
+    
+    if (geminiResponse) {
+      console.log('Gemini success.');
+      return geminiResponse;
+    }
+    return null;
+  } catch (error: any) {
+    console.error('Gemini API error:', error.message);
+    if (error.status === 429 || (error.status >= 500 && error.status < 600)) {
+      throw error; // Re-throw to trigger fallback
+    }
+    return null;
+  }
+}
+
 /**
- * Gets an AI response to a question using a fallback chain: OpenAI -> Mistral -> Claude.
+ * Gets an AI response to a question using a fallback chain: OpenAI -> Mistral -> Claude -> Gemini.
  * @param question The user's question.
  * @param options Optional parameters including timeout and starting provider
  * @returns A Promise resolving to the AI's answer string, or a default message if all fail.
@@ -184,12 +233,14 @@ async function askMistral(question: string, signal?: AbortSignal): Promise<strin
 export async function getAIResponse(
   question: string, 
   options?: { 
-    startProvider?: 'openai' | 'mistral' | 'claude',
-    timeoutMs?: number 
+    startProvider?: 'openai' | 'mistral' | 'claude' | 'gemini',
+    timeoutMs?: number,
+    signal?: AbortSignal 
   }
 ): Promise<string> {
   const startProvider = options?.startProvider || 'openai';
   const timeoutMs = options?.timeoutMs;
+  const externalSignal = options?.signal;
   
   console.log(`Getting AI response with options: startProvider=${startProvider}, timeout=${timeoutMs || 'none'}`);
   
@@ -197,12 +248,30 @@ export async function getAIResponse(
   let controller: AbortController | undefined;
   let timeoutId: NodeJS.Timeout | undefined;
   
-  if (timeoutMs) {
-    controller = new AbortController();
-    timeoutId = setTimeout(() => {
-      controller?.abort();
-      console.log(`Request timed out after ${timeoutMs}ms`);
-    }, timeoutMs);
+  if (timeoutMs || externalSignal) {
+    // Create a new controller only if we need it for timeout
+    // If we have an external signal but no timeout, we'll use the external signal directly
+    if (timeoutMs) {
+      controller = new AbortController();
+      
+      // If we also have an external signal, we need to handle both
+      if (externalSignal) {
+        // Add event listener to abort our controller if external signal aborts
+        externalSignal.addEventListener('abort', () => {
+          controller?.abort(externalSignal.reason);
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+            timeoutId = undefined;
+          }
+        });
+      }
+      
+      // Set timeout to abort our controller
+      timeoutId = setTimeout(() => {
+        controller?.abort(new DOMException('Request timed out', 'TimeoutError'));
+        console.log(`Request timed out after ${timeoutMs}ms`);
+      }, timeoutMs);
+    }
   }
   
   // Function to ensure cleanup of timeout
@@ -212,20 +281,28 @@ export async function getAIResponse(
       timeoutId = undefined;
     }
   };
+  
+  // Get the signal to use for requests - either our controller's or the external one
+  const requestSignal = controller?.signal || externalSignal;
 
   // 1. Try OpenAI if starting with it
   if (startProvider === 'openai') {
     try {
-      const openaiResponse = await askOpenAI(question, controller?.signal);
+      const openaiResponse = await askOpenAI(question, requestSignal);
       if (openaiResponse) {
         cleanup();
         return openaiResponse;
       }
       console.log('OpenAI did not return a response or failed non-critically, trying Mistral...');
     } catch (openaiError: any) {
-      // Check if it was aborted due to timeout
+      // Check if it was aborted due to timeout or external signal
       if (openaiError.name === 'AbortError') {
-        console.log('OpenAI request aborted due to timeout, falling back to Mistral...');
+        console.log('OpenAI request aborted, falling back to Mistral...');
+        // If this was from an external signal requesting full abort, re-throw
+        if (externalSignal?.aborted) {
+          cleanup();
+          throw openaiError;
+        }
       } else {
         console.warn(`OpenAI critical failure (${(openaiError as Error).message}), trying Mistral...`);
       }
@@ -235,35 +312,67 @@ export async function getAIResponse(
   // 2. Try Mistral if starting with it or OpenAI failed
   if (startProvider === 'mistral' || startProvider === 'openai') {
     try {
-      const mistralResponse = await askMistral(question, controller?.signal);
+      const mistralResponse = await askMistral(question, requestSignal);
       if (mistralResponse) {
         cleanup();
         return mistralResponse;
       }
       console.log('Mistral did not return a response or failed non-critically, trying Claude...');
     } catch (mistralError: any) {
-      // Check if it was aborted due to timeout
+      // Check if it was aborted due to timeout or external signal
       if (mistralError.name === 'AbortError') {
-        console.log('Mistral request aborted due to timeout, falling back to Claude...');
+        console.log('Mistral request aborted, falling back to Claude...');
+        // If this was from an external signal requesting full abort, re-throw
+        if (externalSignal?.aborted) {
+          cleanup();
+          throw mistralError;
+        }
       } else {
         console.warn(`Mistral critical failure (${(mistralError as Error).message}), trying Claude...`);
       }
     }
   }
 
-  // 3. Try Claude as last resort
+  // 3. Try Claude as next provider
   try {
-    const claudeResponse = await askClaude(question, controller?.signal);
+    const claudeResponse = await askClaude(question, requestSignal);
     if (claudeResponse) {
       cleanup();
       return claudeResponse;
     }
+    console.log('Claude did not return a response or failed non-critically, trying Gemini...');
   } catch (claudeError: any) {
-    // Check if it was aborted due to timeout
+    // Check if it was aborted due to timeout or external signal
     if (claudeError.name === 'AbortError') {
-      console.log('Claude request aborted due to timeout, all providers timed out.');
+      console.log('Claude request aborted, falling back to Gemini...');
+      // If this was from an external signal requesting full abort, re-throw
+      if (externalSignal?.aborted) {
+        cleanup();
+        throw claudeError;
+      }
     } else {
-      console.warn(`Claude critical failure (${(claudeError as Error).message}). All providers attempted.`);
+      console.warn(`Claude critical failure (${(claudeError as Error).message}), trying Gemini...`);
+    }
+  }
+  
+  // 4. Try Gemini as last resort
+  try {
+    const geminiResponse = await askGemini(question, requestSignal);
+    if (geminiResponse) {
+      cleanup();
+      return geminiResponse;
+    }
+  } catch (geminiError: any) {
+    // Check if it was aborted due to timeout or external signal
+    if (geminiError.name === 'AbortError') {
+      console.log('Gemini request aborted, all providers failed.');
+      // If this was from an external signal, we need to re-throw
+      if (externalSignal?.aborted) {
+        cleanup();
+        throw geminiError;
+      }
+    } else {
+      console.warn(`Gemini critical failure (${(geminiError as Error).message}). All providers attempted.`);
     }
   }
 
