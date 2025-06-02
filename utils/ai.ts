@@ -185,11 +185,13 @@ export async function getAIResponse(
   question: string, 
   options?: { 
     startProvider?: 'openai' | 'mistral' | 'claude',
-    timeoutMs?: number 
+    timeoutMs?: number,
+    signal?: AbortSignal 
   }
 ): Promise<string> {
   const startProvider = options?.startProvider || 'openai';
   const timeoutMs = options?.timeoutMs;
+  const externalSignal = options?.signal;
   
   console.log(`Getting AI response with options: startProvider=${startProvider}, timeout=${timeoutMs || 'none'}`);
   
@@ -197,12 +199,30 @@ export async function getAIResponse(
   let controller: AbortController | undefined;
   let timeoutId: NodeJS.Timeout | undefined;
   
-  if (timeoutMs) {
-    controller = new AbortController();
-    timeoutId = setTimeout(() => {
-      controller?.abort();
-      console.log(`Request timed out after ${timeoutMs}ms`);
-    }, timeoutMs);
+  if (timeoutMs || externalSignal) {
+    // Create a new controller only if we need it for timeout
+    // If we have an external signal but no timeout, we'll use the external signal directly
+    if (timeoutMs) {
+      controller = new AbortController();
+      
+      // If we also have an external signal, we need to handle both
+      if (externalSignal) {
+        // Add event listener to abort our controller if external signal aborts
+        externalSignal.addEventListener('abort', () => {
+          controller?.abort(externalSignal.reason);
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+            timeoutId = undefined;
+          }
+        });
+      }
+      
+      // Set timeout to abort our controller
+      timeoutId = setTimeout(() => {
+        controller?.abort(new DOMException('Request timed out', 'TimeoutError'));
+        console.log(`Request timed out after ${timeoutMs}ms`);
+      }, timeoutMs);
+    }
   }
   
   // Function to ensure cleanup of timeout
@@ -212,20 +232,28 @@ export async function getAIResponse(
       timeoutId = undefined;
     }
   };
+  
+  // Get the signal to use for requests - either our controller's or the external one
+  const requestSignal = controller?.signal || externalSignal;
 
   // 1. Try OpenAI if starting with it
   if (startProvider === 'openai') {
     try {
-      const openaiResponse = await askOpenAI(question, controller?.signal);
+      const openaiResponse = await askOpenAI(question, requestSignal);
       if (openaiResponse) {
         cleanup();
         return openaiResponse;
       }
       console.log('OpenAI did not return a response or failed non-critically, trying Mistral...');
     } catch (openaiError: any) {
-      // Check if it was aborted due to timeout
+      // Check if it was aborted due to timeout or external signal
       if (openaiError.name === 'AbortError') {
-        console.log('OpenAI request aborted due to timeout, falling back to Mistral...');
+        console.log('OpenAI request aborted, falling back to Mistral...');
+        // If this was from an external signal requesting full abort, re-throw
+        if (externalSignal?.aborted) {
+          cleanup();
+          throw openaiError;
+        }
       } else {
         console.warn(`OpenAI critical failure (${(openaiError as Error).message}), trying Mistral...`);
       }
@@ -235,16 +263,21 @@ export async function getAIResponse(
   // 2. Try Mistral if starting with it or OpenAI failed
   if (startProvider === 'mistral' || startProvider === 'openai') {
     try {
-      const mistralResponse = await askMistral(question, controller?.signal);
+      const mistralResponse = await askMistral(question, requestSignal);
       if (mistralResponse) {
         cleanup();
         return mistralResponse;
       }
       console.log('Mistral did not return a response or failed non-critically, trying Claude...');
     } catch (mistralError: any) {
-      // Check if it was aborted due to timeout
+      // Check if it was aborted due to timeout or external signal
       if (mistralError.name === 'AbortError') {
-        console.log('Mistral request aborted due to timeout, falling back to Claude...');
+        console.log('Mistral request aborted, falling back to Claude...');
+        // If this was from an external signal requesting full abort, re-throw
+        if (externalSignal?.aborted) {
+          cleanup();
+          throw mistralError;
+        }
       } else {
         console.warn(`Mistral critical failure (${(mistralError as Error).message}), trying Claude...`);
       }
@@ -253,15 +286,20 @@ export async function getAIResponse(
 
   // 3. Try Claude as last resort
   try {
-    const claudeResponse = await askClaude(question, controller?.signal);
+    const claudeResponse = await askClaude(question, requestSignal);
     if (claudeResponse) {
       cleanup();
       return claudeResponse;
     }
   } catch (claudeError: any) {
-    // Check if it was aborted due to timeout
+    // Check if it was aborted due to timeout or external signal
     if (claudeError.name === 'AbortError') {
-      console.log('Claude request aborted due to timeout, all providers timed out.');
+      console.log('Claude request aborted, all providers failed.');
+      // If this was from an external signal, we need to re-throw
+      if (externalSignal?.aborted) {
+        cleanup();
+        throw claudeError;
+      }
     } else {
       console.warn(`Claude critical failure (${(claudeError as Error).message}). All providers attempted.`);
     }

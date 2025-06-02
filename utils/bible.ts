@@ -19,7 +19,7 @@ interface TranslationInfo {
 const TRANSLATION_MAP: Record<string, TranslationInfo> = {
   'NIV': { id: 'niv', name: 'New International Version', source: 'biblegateway' },
   'ESV': { id: 'esv', name: 'English Standard Version', source: 'biblegateway' },
-  'KJV': { id: 'kjv', name: 'King James Version', source: 'biblegateway' },
+  'KJV': { id: 'kjv', name: 'King James Version', source: 'bible-api' },
   'NKJV': { id: 'nkjv', name: 'New King James Version', source: 'biblegateway' },
   'NLT': { id: 'nlt', name: 'New Living Translation', source: 'biblegateway' },
   'NASB': { id: 'nasb', name: 'New American Standard Bible', source: 'biblegateway' },
@@ -28,46 +28,79 @@ const TRANSLATION_MAP: Record<string, TranslationInfo> = {
   'AMP': { id: 'amp', name: 'Amplified Bible', source: 'biblegateway' },
   'CSB': { id: 'csb', name: 'Christian Standard Bible', source: 'biblegateway' },
   'WEB': { id: 'web', name: 'World English Bible', source: 'bible-api' },
+  'ASV': { id: 'asv', name: 'American Standard Version', source: 'bible-api' },
+  'DARBY': { id: 'darby', name: 'Darby Translation', source: 'bible-api' },
+  'YLT': { id: 'ylt', name: 'Youngs Literal Translation', source: 'bible-api' },
 };
 
 // Default translation when none is specified
 const DEFAULT_TRANSLATION = 'WEB';
 
+
 /**
- * Fetches a Bible verse or passage from multiple sources with fallbacks.
- * @param passage The Bible passage reference (e.g., "John 3:16", "Romans 8:28-30").
- * @param translation The Bible translation code to use (default: 'WEB'). Case insensitive.
- * @returns A Promise resolving to a BibleVerse object or null if not found/error.
+ * Fetches a Bible verse or verse range from online sources
+ * @param reference The Bible reference to fetch (e.g., "John 3:16" or "Romans 8:1-5")
+ * @param translation The Bible translation to use (e.g., "NIV", "ESV", "KJV")
+ * @param options Additional options like signal for AbortController
+ * @returns A Promise that resolves to the verse text and additional metadata
  */
-export async function getBibleVerse(
-  passage: string,
-  translation: string = DEFAULT_TRANSLATION
-): Promise<BibleVerse | null> {
+export async function fetchBibleVerse(
+  reference: string, 
+  translation: string = 'NIV',
+  options?: {
+    signal?: AbortSignal
+  }
+): Promise<BibleVerse> {
   const translationKey = translation.toUpperCase();
   const translationInfo = TRANSLATION_MAP[translationKey] || TRANSLATION_MAP[DEFAULT_TRANSLATION];
   
-  console.log(`Fetching ${passage} in ${translationInfo.name} from ${translationInfo.source}`);
+  const normalizedReference = normalizeBibleReference(reference);
+  console.log(`Fetching Bible verse: ${normalizedReference} (${translation})`);
   
-  // Try the appropriate source based on the translation
-  if (translationInfo.source === 'bible-api') {
-    return getBibleVerseFromBibleApi(passage, translationInfo.id);
-  } else if (translationInfo.source === 'biblegateway') {
-    // For now, we'll use bible-api as a fallback but construct a proper BibleGateway link
-    const bibleApiResult = await getBibleVerseFromBibleApi(passage, 'web');
-    if (!bibleApiResult) return null;
+  const signal = options?.signal;
+  
+  // First, try bible-api.com (has more consistent API but limited translations)
+  try {
+    if (translationInfo.source === 'bible-api') {
+      const result = await getBibleVerseFromBibleApi(normalizedReference, translationInfo.id, signal);
+      if (result) return result;
+    }
     
-    const gatewayLink = constructBibleGatewayLink(passage, translationInfo.id);
+    // For biblegateway or if bible-api failed
+    // For ESV, NIV, NASB, NLT, etc., we have to fall back to a more complex method
+    // This could be implemented server-side with proper scraping logic or APIs
     
-    return {
-      ...bibleApiResult,
-      translation: translationInfo.name,
-      link: gatewayLink,
-      source: 'biblegateway'
-    };
+    // Check if request was aborted
+    if (signal?.aborted) {
+      throw new DOMException('Bible verse fetch aborted', 'AbortError');
+    }
+    
+    // Fallback: Construct a BibleGateway link and return minimal info
+    return constructBibleGatewayFallback(normalizedReference, translation);
+  } catch (error) {
+    // If it's an abort error, don't try fallback, just propagate the error
+    if ((error as any).name === 'AbortError') {
+      throw error;
+    }
+    
+    console.error(`Error fetching Bible verse: ${(error as Error).message}`);
+    // If the main method fails, fall back to the BibleGateway link method
+    return constructBibleGatewayFallback(normalizedReference, translation);
   }
-  
-  // Fallback to bible-api with WEB translation if all else fails
-  return getBibleVerseFromBibleApi(passage, 'web');
+}
+
+/**
+ * For backwards compatibility with existing code
+ * @deprecated Use fetchBibleVerse instead
+ */
+export async function getBibleVerse(
+  passage: string,
+  translation: string = DEFAULT_TRANSLATION,
+  options?: {
+    signal?: AbortSignal
+  }
+): Promise<BibleVerse> {
+  return fetchBibleVerse(passage, translation, options);
 }
 
 /**
@@ -77,6 +110,21 @@ function constructBibleGatewayLink(passage: string, translationId: string): stri
   const gatewayBaseUrl = 'https://www.biblegateway.com/passage/';
   const queryParams = `?search=${encodeURIComponent(passage)}&version=${translationId}`;
   return `${gatewayBaseUrl}${queryParams}`;
+}
+
+/**
+ * Constructs a BibleGateway fallback result
+ */
+function constructBibleGatewayFallback(reference: string, translation: string): BibleVerse {
+  const gatewayLink = constructBibleGatewayLink(reference, translation);
+  
+  return {
+    ref: reference,
+    text: '',
+    translation,
+    link: gatewayLink,
+    source: 'biblegateway'
+  };
 }
 
 /**
@@ -111,42 +159,48 @@ function constructBibleHubLink(passage: string, translationId: string): string {
  */
 async function getBibleVerseFromBibleApi(
   passage: string,
-  translation: string = 'web'
+  translation: string = 'web',
+  signal?: AbortSignal
 ): Promise<BibleVerse | null> {
-  const encodedPassage = encodeURIComponent(passage);
-  // Only add translation parameter if not using the default 'web'
-  const url = translation !== 'web' 
-    ? `https://bible-api.com/${encodedPassage}?translation=${translation}`
-    : `https://bible-api.com/${encodedPassage}`;
-
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      console.error(`Bible API error for ${passage} (${translation}): ${response.status} ${response.statusText}`);
-      const errorBody = await response.text();
-      console.error('Error body:', errorBody);
-      return null;
-    }
-
-    const data = await response.json();
-
-    if (data.error) {
-      console.error(`Bible API error for ${passage} (${translation}): ${data.error}`);
-      return null;
-    }
+  // bible-api.com only supports certain translations
+  if (['KJV', 'ASV', 'DARBY', 'WEB', 'YLT'].includes(translation.toUpperCase())) {
+    const encodedRef = encodeURIComponent(passage);
+    const response = await fetch(
+      `https://bible-api.com/${encodedRef}?translation=${translation.toLowerCase()}`,
+      { signal }
+    );
     
-    // Construct links to popular Bible websites
-    const gatewayLink = constructBibleGatewayLink(passage, translation);
-
-    return {
-      ref: data.reference,
-      text: data.text,
-      translation: data.translation_name || translation.toUpperCase(),
-      link: gatewayLink,
-      source: 'bible-api'
-    };
-  } catch (error) {
-    console.error(`Error fetching verse ${passage} (${translation}):`, error);
+    if (response.ok) {
+      const data = await response.json();
+      
+      if (data.error) {
+        console.error(`Bible API error for ${passage} (${translation}): ${data.error}`);
+        return null;
+      }
+      
+      // Construct links to popular Bible websites
+      const gatewayLink = constructBibleGatewayLink(passage, translation);
+      
+      return {
+        ref: data.reference,
+        text: data.text,
+        translation: data.translation_name || translation.toUpperCase(),
+        link: gatewayLink,
+        source: 'bible-api'
+      };
+    } else {
+      console.error(`Bible API error for ${passage} (${translation}): ${response.status} ${response.statusText}`);
+      return null;
+    }
+  } else {
     return null;
   }
+}
+
+/**
+ * Normalizes a Bible reference (e.g., "John 3:16" or "Romans 8:1-5")
+ */
+function normalizeBibleReference(reference: string): string {
+  // Basic normalization: trim and remove multiple spaces
+  return reference.trim().replace(/\s+/g, ' ');
 }
