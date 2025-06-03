@@ -42,12 +42,15 @@ export default async function RootLayout({
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
-        {/* Google AdSense - Script loading only (no initialization) */}
+        {/* Google AdSense verification meta tag */}
+        <meta name="google-adsense-account" content="ca-pub-3920325569173233" />
+        
+        {/* Google AdSense Auto Ads */}
         <Script
           async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6655505252648648"
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3920325569173233"
           crossOrigin="anonymous"
-          strategy="afterInteractive"
+          strategy="beforeInteractive"
         />
         {/* Google Analytics 4 Script */}
         <Script

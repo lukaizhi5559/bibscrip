@@ -16,8 +16,9 @@ import { truncateText } from "@/utils/string-helpers"
 import { useChatHistoryContext } from "@/contexts/chat-history-context"
 import { useUser } from "@/contexts/user-context"
 import { PromptHistory } from "@/components/prompt-history"
-import AdSlot from "@/components/AdSlot"
+// import AdSlot from "@/components/AdSlot"
 import VideoAd from "@/components/VideoAd"
+import ResponsiveAdSlot from "@/components/ResponsiveAdSlot"
 
 const mockResponse: ChatResponseData = {
   aiAnswer:
@@ -904,11 +905,15 @@ export default function HomePage() {
           {/* Ad below the input box on main screen */}
           {showAds && (
             <div className="w-full mt-4">
-              <AdSlot 
+              {/* <AdSlot 
                 slotId="main-input-bottom"
                 format="horizontal"
                 className="py-2"
-              />
+              /> */}
+              {/* <ResponsiveAdSlot
+                slotId="4298132768"
+                style={{ minHeight: '100px' }}
+              /> */}
             </div>
           )}
           

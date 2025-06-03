@@ -168,7 +168,7 @@ export default function ResponsiveAdSlot({
           minHeight: '250px',
           ...style
         }}
-        data-ad-client="ca-pub-6655505252648648"
+        data-ad-client="ca-pub-3920325569173233"
         data-ad-slot={slotId}
         data-ad-format="auto"
         data-full-width-responsive="true"
