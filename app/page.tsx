@@ -442,7 +442,6 @@ export default function HomePage() {
     }, 20000) // 20 seconds timeout
     
     try {
-      
       const response = await fetch('/api/ask', {
         method: 'POST',
         headers: {
@@ -457,12 +456,12 @@ export default function HomePage() {
       
       // Request completed successfully, clear the timeout
       clearTimeout(timeoutId)
-
+      
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to get answer')
       }
-
+      
       const data = await response.json()
       
       // Transform API response to match ChatResponseData format
@@ -517,9 +516,25 @@ export default function HomePage() {
         // Show a message indicating we're falling back to another provider
         setError('The request was taking too long. Automatically trying another AI provider...')
         
+        // Declare fallbackTimeoutId at a higher scope so it can be accessed in both try and catch blocks
+        let fallbackTimeoutId: NodeJS.Timeout | undefined;
+        
         // Try the fallback provider
         try {
           console.log('Trying fallback provider...')
+          
+          // Create a new AbortController for the fallback request
+          const fallbackController = new AbortController()
+          const fallbackSignal = fallbackController.signal
+          
+          // Store the new controller
+          abortControllerRef.current = fallbackController
+          
+          // Set a new timeout for the fallback request
+          fallbackTimeoutId = setTimeout(() => {
+            fallbackController.abort()
+          }, 20000) // 20 seconds timeout
+          
           const fallbackResponse = await fetch('/api/ask', {
             method: 'POST',
             headers: {
@@ -528,8 +543,12 @@ export default function HomePage() {
             body: JSON.stringify({ 
               question: questionText,
               useFallback: true // Tell backend to use the next provider in the chain
-            })
+            }),
+            signal: fallbackSignal // Attach the new abort signal
           })
+          
+          // Clear the fallback timeout since the request completed
+          clearTimeout(fallbackTimeoutId)
           
           if (!fallbackResponse.ok) {
             throw new Error(`Error with fallback provider: ${fallbackResponse.status}`)
@@ -583,6 +602,12 @@ export default function HomePage() {
           setError(null)
           
         } catch (fallbackErr: any) {
+          // Clear the fallback timeout to prevent memory leaks
+          if (fallbackTimeoutId) {
+            clearTimeout(fallbackTimeoutId)
+            fallbackTimeoutId = undefined
+          }
+          
           console.error('Error with fallback provider:', fallbackErr)
           setError('All AI providers failed to respond. Please try again later.')
         }
