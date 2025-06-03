@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { getAIResponse } from '@/utils/ai';
 import { getBibleVerse, BibleVerse } from '@/utils/bible';
 import { extractVerseReferences } from '@/utils/verse-parser';
-import { makeRequest } from '@/utils/request-manager';
+import { makeRequest, AIErrorResponse } from '@/utils/request-manager';
 import { cacheManager, createCacheKey } from '@/utils/cache-manager';
 import { analytics } from '@/utils/analytics';
 
@@ -269,7 +269,19 @@ export async function POST(request: Request) {
       
       // Extract verse references from both question and response
       const questionVerses = extractVerseReferences(question);
-      const aiResponseVerses = extractVerseReferences(aiResult.data);
+      
+      // Check if the AI response is a string or an error object
+      let aiResponseText: string;
+      if (typeof aiResult.data === 'string') {
+        aiResponseText = aiResult.data;
+      } else if (typeof aiResult.data === 'object' && aiResult.data && 'error' in aiResult.data) {
+        const errorResponse = aiResult.data as AIErrorResponse;
+        aiResponseText = errorResponse.error;
+      } else {
+        aiResponseText = 'Error processing your request';
+      }
+      
+      const aiResponseVerses = extractVerseReferences(aiResponseText);
       const verseRefsToFetch = Array.from(new Set([...questionVerses, ...aiResponseVerses]));
       
       // Fetch Bible verses with caching
@@ -335,7 +347,7 @@ export async function POST(request: Request) {
       
       // Return the complete response
       return NextResponse.json({
-        ai: aiResult.data,
+        ai: aiResponseText,
         verses: fetchedVerses,
         provider: aiResult.provider,
         fromCache: aiResult.fromCache,

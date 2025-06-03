@@ -228,7 +228,7 @@ async function askGemini(question: string, signal?: AbortSignal): Promise<string
  * Gets an AI response to a question using a fallback chain: OpenAI -> Mistral -> Claude -> Gemini.
  * @param question The user's question.
  * @param options Optional parameters including timeout and starting provider
- * @returns A Promise resolving to the AI's answer string, or a default message if all fail.
+ * @returns A Promise resolving to the AI's answer string, or an object with error details and attempted providers if all fail.
  */
 export async function getAIResponse(
   question: string, 
@@ -237,7 +237,7 @@ export async function getAIResponse(
     timeoutMs?: number,
     signal?: AbortSignal 
   }
-): Promise<string> {
+): Promise<string | { error: string, attemptedProviders: ('openai' | 'mistral' | 'claude' | 'gemini')[] }> {
   const startProvider = options?.startProvider || 'openai';
   const timeoutMs = options?.timeoutMs;
   const externalSignal = options?.signal;
@@ -284,10 +284,14 @@ export async function getAIResponse(
   
   // Get the signal to use for requests - either our controller's or the external one
   const requestSignal = controller?.signal || externalSignal;
+  
+  // Track which providers we've attempted
+  const attemptedProviders: ('openai' | 'mistral' | 'claude' | 'gemini')[] = [];
 
   // 1. Try OpenAI if starting with it
   if (startProvider === 'openai') {
     try {
+      attemptedProviders.push('openai');
       const openaiResponse = await askOpenAI(question, requestSignal);
       if (openaiResponse) {
         cleanup();
@@ -312,6 +316,7 @@ export async function getAIResponse(
   // 2. Try Mistral if starting with it or OpenAI failed
   if (startProvider === 'mistral' || startProvider === 'openai') {
     try {
+      attemptedProviders.push('mistral');
       const mistralResponse = await askMistral(question, requestSignal);
       if (mistralResponse) {
         cleanup();
@@ -335,6 +340,7 @@ export async function getAIResponse(
 
   // 3. Try Claude as next provider
   try {
+    attemptedProviders.push('claude');
     const claudeResponse = await askClaude(question, requestSignal);
     if (claudeResponse) {
       cleanup();
@@ -357,6 +363,7 @@ export async function getAIResponse(
   
   // 4. Try Gemini as last resort
   try {
+    attemptedProviders.push('gemini');
     const geminiResponse = await askGemini(question, requestSignal);
     if (geminiResponse) {
       cleanup();
@@ -379,6 +386,9 @@ export async function getAIResponse(
   // Clean up timeout if it hasn't fired yet
   cleanup();
 
-  console.error('All AI providers failed to generate a response after attempting the provider chain.');
-  return 'Sorry, I was unable to process your request with any of our AI providers at the moment. Please try again later.';
+  console.error(`All AI providers failed to generate a response after attempting: ${attemptedProviders.join(', ')}`);
+  return {
+    error: 'Sorry, I was unable to process your request with any of our AI providers at the moment. Please try again later.',
+    attemptedProviders
+  };
 }

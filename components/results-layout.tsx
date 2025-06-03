@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import VerseResourceTabs from './verse-resource-tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import AdSlot from '@/components/AdSlot';
+import ResponsiveAdSlot from '@/components/ResponsiveAdSlot';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -77,6 +79,7 @@ interface ResultsLayoutProps {
   onShare?: () => void;
   detectedContentType?: 'topic' | 'character' | 'verse' | 'general';
   chatResponse?: ChatResponseData | null;
+  showAds?: boolean;
 }
 
 /**
@@ -85,7 +88,7 @@ interface ResultsLayoutProps {
  */
 // Scroll to top button component
 // ScrollToTopButton using scrollIntoView approach - only visible when scrolled down
-const ScrollToTopButton = () => {
+const ScrollToTopButton = ({ showAds }: { showAds?: boolean }) => {
   const topRef = useRef<HTMLDivElement>(null);
   // State to track if button should be visible
   const [isVisible, setIsVisible] = useState(false);
@@ -224,7 +227,8 @@ export function ResultsLayout({
   onSave,
   onShare,
   detectedContentType = 'general',
-  chatResponse
+  chatResponse,
+  showAds = false
 }: ResultsLayoutProps) {
   const [activeTab, setActiveTab] = useState('answer');
   const [showAllVerses, setShowAllVerses] = useState(false);
@@ -292,11 +296,21 @@ export function ResultsLayout({
   
   return (
     <div className="w-full max-w-4xl py-6 relative h-full overflow-y-auto results-layout">
-      <ScrollToTopButton />
+      <ScrollToTopButton showAds={showAds} />
       {/* Main question display with truncation for long questions */}
       <h1 className="text-2xl font-bold mb-4 pl-10" title={question} id="results-title">{truncateText(question, 100)}</h1>
+      {showAds && (
+        // Import the new ResponsiveAdSlot component
+        <div className="my-4">
+          {/* Using the verified ad slot ID */}
+          <ResponsiveAdSlot 
+            slotId="4298132768"
+            style={{ minHeight: '100px' }}
+          />
+        </div>
+      )}
       
-      {/* Tabs for different content sections */}
+      {/* Tabs for content navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="w-full mb-6">
           <TabsTrigger value="answer" data-value="answer" className="flex-1">
@@ -506,6 +520,17 @@ export function ResultsLayout({
                 />
               )}
             </CardContent>
+
+            {/* Ad placement after Bible verses and before tabs */}
+            {showAds && (
+              <div className="px-6 py-2 border-t">
+                <AdSlot 
+                  slotId="4298132768"
+                  className="py-2"
+                />
+              </div>
+            )}
+
           </Card>
           
           {/* Show video results on the answer tab too */}
@@ -570,6 +595,16 @@ export function ResultsLayout({
                 </div>
               )}
             </CardContent>
+            
+            {/* Ad placement inside Bible tab */}
+            {showAds && (
+              <div className="px-6 py-2 border-t">
+                <AdSlot 
+                  slotId="4298132768"
+                  className="py-2"
+                />
+              </div>
+            )}
           </Card>
         </TabsContent>
         
@@ -589,6 +624,16 @@ export function ResultsLayout({
             <CardContent>
               <VideoResults query={question} autoFetch={true} maxResults={6} />
             </CardContent>
+            
+            {/* Ad placement inside Videos tab */}
+            {showAds && (
+              <div className="px-6 py-2 border-t">
+                <AdSlot 
+                  slotId="4298132768"
+                  className="py-2"
+                />
+              </div>
+            )}
           </Card>
         </TabsContent>
         

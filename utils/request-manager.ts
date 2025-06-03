@@ -15,6 +15,12 @@ export interface AIProvider {
   defaultTimeoutMs?: number;
 }
 
+// Interface for error response from getAIResponse
+export interface AIErrorResponse {
+  error: string;
+  attemptedProviders: ('openai' | 'mistral' | 'claude' | 'gemini')[];
+}
+
 export interface RequestOptions {
   providers?: Array<'openai' | 'mistral' | 'claude' | 'gemini'>;
   cacheKey?: string;
@@ -211,7 +217,7 @@ export function getDegradationStatus(): {
  * Make a request with caching, rate limiting, and fallback logic
  */
 export async function makeRequest<T>(
-  requestFn: (provider: string, abortSignal?: AbortSignal) => Promise<T>,
+  requestFn: (provider: string, abortSignal?: AbortSignal) => Promise<T | AIErrorResponse>,
   query: string,
   options?: Partial<RequestOptions>
 ): Promise<RequestResult<T>> {
@@ -323,7 +329,28 @@ export async function makeRequest<T>(
             recordRequest(provider);
             
             // Make the actual request
-            const data = await requestFn(provider, controller.signal);
+            const response = await requestFn(provider, controller.signal);
+            
+            // Handle case where getAIResponse returns an error object instead of a string
+            let data: T;
+            if (typeof response === 'object' && response !== null && 'error' in response) {
+              // If we got an error object with attempted providers info
+              const errorResponse = response as AIErrorResponse;
+              console.log(`Provider ${provider} returned error object with attempted providers:`, errorResponse.attemptedProviders);
+              
+              // Check if this provider was actually attempted
+              if (errorResponse.attemptedProviders.includes(provider as any)) {
+                // This is a legitimate error from this provider
+                throw new Error(`Provider ${provider} failed: ${errorResponse.error}`);
+              } else {
+                // The request didn't even attempt this provider (likely internal error)
+                // Try the next provider
+                throw new Error(`Internal error: ${errorResponse.error}`);
+              }
+            } else {
+              // Normal response
+              data = response as T;
+            }
             
             // Calculate token usage and cost (provider-specific logic would be implemented here)
             const tokenUsage = { input: 0, output: 0, total: 0 }; // Placeholder
