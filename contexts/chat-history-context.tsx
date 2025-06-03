@@ -24,10 +24,7 @@ const ChatHistoryContext = createContext<ChatHistoryContextType | null>(null)
 export function ChatHistoryProvider({ children }: { children: ReactNode }) {
   // Use the hook to get all the chat history functionality
   const chatHistory = useChatHistory()
-  
-  // Add debug logging for provider renders
-  console.log('ChatHistoryProvider rendering with', chatHistory.sessions.length, 'sessions')
-  
+   
   // Add logging for session changes to track updates
   useEffect(() => {
     console.log('Session state changed in context:', chatHistory.sessions.length, 'sessions')

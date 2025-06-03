@@ -7,10 +7,13 @@ import { AppHeader } from "@/components/app-header"
 import { AppFooter } from "@/components/app-footer"
 import { SidebarController } from "@/components/sidebar-controller"
 import { ChatHistoryProvider } from "@/contexts/chat-history-context"
+import { UserProvider } from "@/contexts/user-context"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { cookies } from "next/headers"
 import { LocalStorageInitializer } from "@/components/local-storage-initializer"
 import { Toaster } from "@/components/ui/toaster"
+import IdleAdsController from "@/components/IdleAdsController"
+import Script from "next/script"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 
@@ -25,6 +28,9 @@ export const metadata: Metadata = {
   ]
 }
 
+// Google Analytics 4 Measurement ID
+const GA_MEASUREMENT_ID = 'G-XXXXXXXXXX'; // Replace with your actual GA4 measurement ID
+
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -35,12 +41,35 @@ export default async function RootLayout({
 
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
+      <head>
+        {/* Google AdSense - Script loading only (no initialization) */}
+        <Script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6655505252648648"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
+        {/* Google Analytics 4 Script */}
+        <Script
+          src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${GA_MEASUREMENT_ID}');
+          `}
+        </Script>
+      </head>
       <body>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           {/* Add the initializer to clean up localStorage */}
           <LocalStorageInitializer />
-          <ChatHistoryProvider>
-            <SidebarProvider defaultOpen={defaultSidebarOpen}>
+          <UserProvider>
+            <ChatHistoryProvider>
+              <SidebarProvider defaultOpen={defaultSidebarOpen}>
               <div className="bg-background w-full h-screen overflow-hidden">
                 <SidebarController />
                 <SidebarInset>
@@ -64,9 +93,12 @@ export default async function RootLayout({
               </SidebarInset>
               {/* <AppFooter /> */}
               </div>
-            </SidebarProvider>
-          </ChatHistoryProvider>
-          <Toaster />
+              </SidebarProvider>
+              {/* Idle Detection for Video Ads */}
+              <IdleAdsController />
+            </ChatHistoryProvider>
+            <Toaster />
+          </UserProvider>
         </ThemeProvider>
       </body>
     </html>

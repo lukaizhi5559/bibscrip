@@ -102,23 +102,6 @@ export function SessionItem({ session, isActive, onClick, onRename, onDelete }: 
     day: 'numeric'
   })
   
-  const handleClick = () => {
-    if (!isEditing) {
-      // Log the click for debugging
-      console.log('SessionItem click handler for', session.id)
-      
-      // Emit custom event to ensure results panel is opened
-      const event = new CustomEvent('bibscrip:showresults', { 
-        bubbles: true, 
-        detail: { sessionId: session.id } 
-      })
-      document.dispatchEvent(event)
-      
-      // Call the provided onClick handler to switch sessions
-      onClick()
-    }
-  }
-  
   const handleRename = () => {
     console.log('SessionItem: Renaming session', session.id, 'to', titleInput)
     onRename(session.id, titleInput)

@@ -14,7 +14,10 @@ import { useToast } from "@/hooks/use-toast"
 import { useMediaQuery } from "../hooks/use-media-query"
 import { truncateText } from "@/utils/string-helpers"
 import { useChatHistoryContext } from "@/contexts/chat-history-context"
+import { useUser } from "@/contexts/user-context"
 import { PromptHistory } from "@/components/prompt-history"
+import AdSlot from "@/components/AdSlot"
+import VideoAd from "@/components/VideoAd"
 
 const mockResponse: ChatResponseData = {
   aiAnswer:
@@ -60,6 +63,9 @@ export default function HomePage() {
     switchSession
   } = useChatHistoryContext()
   
+  // Get user context for ad display logic
+  const { showAds } = useUser()
+  
   // Reference to AbortController for cancelling requests
   const abortControllerRef = useRef<AbortController | null>(null)
   
@@ -71,6 +77,8 @@ export default function HomePage() {
   const [detectedContentType, setDetectedContentType] = useState<'topic' | 'character' | 'verse' | 'general'>('general')
   const [resultsOpen, setResultsOpen] = useState(false)
   const [lastQuestion, setLastQuestion] = useState<string | null>(null)
+  const [showPostAnswerVideoAd, setShowPostAnswerVideoAd] = useState(false)
+  const [showLoadingVideoAd, setShowLoadingVideoAd] = useState(false)
   
   // Update document title with truncated question when a search is performed
   useEffect(() => {
@@ -401,6 +409,16 @@ export default function HomePage() {
     setError(null)
     setResultsOpen(true) // Always open results panel on submit
     
+    // Show video ad during loading for free-tier users
+    if (showAds) {
+      // For development, always show ad to test implementation
+      // In production, use probability: const shouldShowAd = Math.random() > 0.5
+      const shouldShowAd = true
+      if (shouldShowAd) {
+        setShowLoadingVideoAd(true)
+      }
+    }
+    
     // Only create a new session if there isn't an active one
     // This allows reusing the current session for multiple prompts
     let currentSessionId = activeSessionId
@@ -441,6 +459,14 @@ export default function HomePage() {
       controller.abort()
     }, 20000) // 20 seconds timeout
     
+    // Add timeout to close loading ad if request takes too long
+    const requestTimeout = setTimeout(() => {
+      if (showLoadingVideoAd && isLoading) {
+        console.log('Request taking too long, closing loading ad')
+        setShowLoadingVideoAd(false)
+      }
+    }, 20000) // Close loading ad after 20 seconds if still loading
+    
     try {
       const response = await fetch('/api/ask', {
         method: 'POST',
@@ -454,8 +480,9 @@ export default function HomePage() {
         signal // Attach the abort signal to the fetch request
       })
       
-      // Request completed successfully, clear the timeout
+      // Clear the timeout since response has returned
       clearTimeout(timeoutId)
+      clearTimeout(requestTimeout)
       
       if (!response.ok) {
         const errorData = await response.json()
@@ -492,6 +519,14 @@ export default function HomePage() {
       // Mark data as loaded - ensure we're setting complete data
       setChatResponse(chatResponseData)
       
+      // Add the response to the chat history
+      addMessage(questionText, chatResponseData)
+      
+      // Hide the loading video ad if it was shown
+      if (showLoadingVideoAd) {
+        setShowLoadingVideoAd(false)
+      }
+      
       // Ensure results panel is open to display the new results
       setResultsOpen(true)
       
@@ -508,6 +543,12 @@ export default function HomePage() {
     } catch (err: any) {
       // Clear the timeout to prevent multiple aborts
       clearTimeout(timeoutId)
+      clearTimeout(requestTimeout)
+      
+      // Hide the loading video ad if it was shown
+      if (showLoadingVideoAd) {
+        setShowLoadingVideoAd(false)
+      }
       
       console.error('Error with primary API request:', err)
       
@@ -608,6 +649,11 @@ export default function HomePage() {
             fallbackTimeoutId = undefined
           }
           
+          // Make sure the loading video ad is hidden
+          if (showLoadingVideoAd) {
+            setShowLoadingVideoAd(false)
+          }
+          
           console.error('Error with fallback provider:', fallbackErr)
           setError('All AI providers failed to respond. Please try again later.')
         }
@@ -623,10 +669,26 @@ export default function HomePage() {
     }
   }
 
-  const toggleResults = () => {
-    setResultsOpen(prev => !prev)
-  }
+  // Cancel API request if in progress
+  const cancelApiRequest = useCallback(() => {
+    if (abortControllerRef.current) {
+      console.log('Cancelling API request')
+      abortControllerRef.current.abort()
+      setIsLoading(false)
+      setError('Request cancelled')
+      
+      // Hide the loading video ad if shown
+      if (showLoadingVideoAd) {
+        setShowLoadingVideoAd(false)
+      }
+    }
+  }, [showLoadingVideoAd])
   
+  // Handler for the cancel button in the UI
+  const handleCancelRequest = useCallback(() => {
+    cancelApiRequest()
+  }, [cancelApiRequest])
+
   // Function to start a new chat - clear state and create new session
   const startNewChat = useCallback(() => {
     // Clear the input and results
@@ -636,6 +698,7 @@ export default function HomePage() {
     setIsLoading(false)
     setError(null)
     setDetectedContentType('general')
+    setShowLoadingVideoAd(false)
     
     // Create a new session and ensure it's active
     const newSessionId = createSession()
@@ -652,7 +715,7 @@ export default function HomePage() {
     // Remove any existing query parameter
     params.delete('q')
     // Add the new session ID to URL
-    params.set('id', newSessionId)  // Add the new session ID to URL
+    params.set('id', newSessionId)
     router.push(`?${params.toString()}`)
     
     // Reset the flag after a small delay
@@ -667,32 +730,25 @@ export default function HomePage() {
     if (textareaRef.current) {
       textareaRef.current.focus()
     }
-  }, [createSession, router, searchParams])
+  }, [createSession, router, searchParams, switchSession, setInputValue, setChatResponse, setLastQuestion, setIsLoading, setError, setDetectedContentType, setShowLoadingVideoAd])
   
-  // Handle cancellation of API request
-  const handleCancelRequest = useCallback(() => {
-    if (abortControllerRef.current) {
-      console.log('Cancelling API request')
-      abortControllerRef.current.abort()
-      abortControllerRef.current = null
-      setIsLoading(false)
-      setError('Request cancelled')
-    }
-  }, [])
+  const toggleResults = () => {
+    setResultsOpen(prev => !prev)
+  }
   
-  // Listen for custom new chat event from sidebar
+  // Listen for new chat events
   useEffect(() => {
+    // Create event handler for the new chat event
     const handleNewChatEvent = () => {
-      console.log('Received new chat event')
       startNewChat()
     }
     
     // Add event listener
-    document.addEventListener('bibscrip:newchat', handleNewChatEvent)
+    document.addEventListener('bibscrip:newchat', handleNewChatEvent as EventListener)
     
     // Clean up
     return () => {
-      document.removeEventListener('bibscrip:newchat', handleNewChatEvent)
+      document.removeEventListener('bibscrip:newchat', handleNewChatEvent as EventListener)
     }
   }, [startNewChat])
   
@@ -724,7 +780,7 @@ export default function HomePage() {
     return () => {
       document.removeEventListener('bibscrip:showresults', handleShowResultsEvent as EventListener)
     }
-  }, [activeSessionId, activeSession, chatResponse])
+  }, [activeSessionId, activeSession, chatResponse, setResultsOpen, setChatResponse, setLastQuestion])
 
   const placeholderText = `Ask anything about Scripture, theology, or life.`;
 
@@ -844,6 +900,18 @@ export default function HomePage() {
               }
             </Button>
           </div>
+   
+          {/* Ad below the input box on main screen */}
+          {showAds && (
+            <div className="w-full mt-4">
+              <AdSlot 
+                slotId="main-input-bottom"
+                format="horizontal"
+                className="py-2"
+              />
+            </div>
+          )}
+          
 
           {/* Prompt History Component - Added in the red box area */}
           {/* <div className="mt-1 bg-background/50">
@@ -908,6 +976,7 @@ export default function HomePage() {
                 loading={isLoading}
                 chatResponse={chatResponse}
                 detectedContentType={detectedContentType}
+                showAds={showAds}
                 onSave={() => alert('Bookmark feature coming soon!')}
                 onShare={() => {
                   // Create a shareable URL with both the query and session ID
@@ -958,6 +1027,26 @@ export default function HomePage() {
           </div>
         </div>
       </div>
+
+      {/* Video ad during loading */}
+      {showLoadingVideoAd && (
+        <VideoAd 
+          adTagUrl="https://pubads.g.doubleclick.net/gampad/ads?iu=/21775744923/external/single_ad_samples&sz=640x480&cust_params=sample_ct%3Dlinear&ciu_szs=300x250%2C728x90&gdfp_req=1&output=vast&unviewed_position_start=1&env=vp&impl=s&correlator="
+          isActive={true}
+          onClose={() => setShowLoadingVideoAd(false)}
+          position="modal"
+        />
+      )}
+      
+      {/* Video ad after long answers */}
+      {showPostAnswerVideoAd && (
+        <VideoAd 
+          adTagUrl="https://pubads.g.doubleclick.net/gampad/ads?iu=/21775744923/external/single_ad_samples&sz=640x480&cust_params=sample_ct%3Dlinear&ciu_szs=300x250%2C728x90&gdfp_req=1&output=vast&unviewed_position_start=1&env=vp&impl=s&correlator="
+          isActive={true}
+          onClose={() => setShowPostAnswerVideoAd(false)}
+          position="modal"
+        />
+      )}
     </div>
   )
 }

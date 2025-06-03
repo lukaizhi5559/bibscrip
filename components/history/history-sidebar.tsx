@@ -41,9 +41,6 @@ export function HistorySidebar({
   onClearAllSessions,
   className
 }: HistorySidebarProps) {
-  // Debug: log sessions and active session ID
-  console.log('HistorySidebar rendering with', sessions?.length, 'sessions')
-  console.log('Active session ID:', activeSessionId)
   
   // Add wrapped handlers with debug logs
   const handleRename = (sessionId: string, newTitle: string) => {
