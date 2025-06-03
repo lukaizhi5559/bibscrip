@@ -945,7 +945,7 @@ export default function HomePage() {
             : 'w-0 opacity-0 invisible'}`}
         data-mobile-position="true"
       >
-        <div className="relative h-full pb-[3rem]">
+        <div className={`relative h-full ${isMobile ? '' : 'pb-[3rem]'}`}>
           <Button 
             variant="outline"
             size="icon" 
