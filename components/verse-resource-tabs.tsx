@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ExpandableText } from './expandable-text';
 import { ExternalLink } from 'lucide-react';
+import ResponsiveAdSlot from './ResponsiveAdSlot';
 
 interface VerseResourceTabsProps {
   verse: {
@@ -325,7 +326,14 @@ export default function VerseResourceTabs({ verse, defaultTab = 'text' }: VerseR
         
         {/* BibleGateway content */}
         {activeTab === 'biblegateway' && (
-          <div className="flex flex-col space-y-4">
+          <div className="flex flex-col space-y-2">
+            {/* Thin ad banner at the top (red line area) */}
+            {/* <div className="w-full">
+              <ResponsiveAdSlot
+                slotId="4298132768"
+                style={{ minHeight: '100px' }}
+              />
+            </div> */}
             <div className="relative min-h-[400px] border rounded-md overflow-hidden">
               <div className="absolute inset-0 overflow-hidden">
                 <iframe
@@ -353,30 +361,48 @@ export default function VerseResourceTabs({ verse, defaultTab = 'text' }: VerseR
         
         {/* BibleHub content */}
         {activeTab === 'biblehub' && (
-          <div className="relative min-h-[400px] border rounded-md overflow-hidden">
-            <div className="absolute inset-0 overflow-hidden">
-              <iframe
-                src={bibleHubUrl}
-                className="w-full h-full border-0 overflow-auto"
-                title={`BibleHub - ${verse.ref}`}
-                sandbox="allow-same-origin allow-scripts allow-forms"
-                loading="lazy"
+          <div className="flex flex-col space-y-2">
+            {/* Thin ad banner at the top (red line area) */}
+            {/* <div className="w-full">
+              <ResponsiveAdSlot
+                slotId="4298132768"
+                style={{ minHeight: '100px' }}
               />
+            </div> */}
+            <div className="relative min-h-[400px] border rounded-md overflow-hidden">
+              <div className="absolute inset-0 overflow-hidden">
+                <iframe
+                  src={bibleHubUrl}
+                  className="w-full h-full border-0 overflow-auto"
+                  title={`BibleHub - ${verse.ref}`}
+                  sandbox="allow-same-origin allow-scripts allow-forms"
+                  loading="lazy"
+                />
+              </div>
             </div>
           </div>
         )}
         
         {/* BlueLetterBible content */}
         {activeTab === 'blueletterbible' && (
-          <div className="relative min-h-[400px] border rounded-md overflow-hidden">
-            <div className="absolute inset-0 overflow-hidden">
-              <iframe
-                src={blueLetterBibleUrl}
-                className="w-full h-full border-0 overflow-auto"
-                title={`BlueLetterBible - ${verse.ref}`}
-                sandbox="allow-same-origin allow-scripts allow-forms"
-                loading="lazy"
+          <div className="flex flex-col space-y-2">
+            {/* Thin ad banner at the top (red line area) */}
+            {/* <div className="w-full">
+              <ResponsiveAdSlot
+                slotId="4298132768"
+                style={{ minHeight: '100px' }}
               />
+            </div> */}
+            <div className="relative min-h-[400px] border rounded-md overflow-hidden">
+              <div className="absolute inset-0 overflow-hidden">
+                <iframe
+                  src={blueLetterBibleUrl}
+                  className="w-full h-full border-0 overflow-auto"
+                  title={`BlueLetterBible - ${verse.ref}`}
+                  sandbox="allow-same-origin allow-scripts allow-forms"
+                  loading="lazy"
+                />
+              </div>
             </div>
           </div>
         )}
