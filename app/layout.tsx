@@ -47,10 +47,11 @@ export default async function RootLayout({
         
         {/* Google AdSense Auto Ads */}
         <Script
+          id="google-adsense"
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3920325569173233"
           crossOrigin="anonymous"
-          strategy="beforeInteractive"
+          strategy="afterInteractive"
         />
         {/* Google Analytics 4 Script */}
         <Script
@@ -94,12 +95,12 @@ export default async function RootLayout({
                   {" "}
                 </div>
               </SidebarInset>
-              {/* <AppFooter /> */}
               </div>
               </SidebarProvider>
               {/* Idle Detection for Video Ads */}
               <IdleAdsController />
             </ChatHistoryProvider>
+            <AppFooter />
             <Toaster />
           </UserProvider>
         </ThemeProvider>

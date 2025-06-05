@@ -351,7 +351,7 @@ export function ResultsLayout({
               )}
               
               {/* Show specialized cards based on content type */}
-              {showTopicCard && (
+              {/* {showTopicCard && (
                 <TopicCard 
                   topic={question.replace(/what does the bible say about /i, '').replace(/\?$/, '')}
                   summary={(aiResponse || '').split('\n\n')[0] || ''}
@@ -382,7 +382,7 @@ export function ResultsLayout({
                     context: 'Key moment in life'
                   }))}
                 />
-              )}
+              )} */}
             </CardContent>
           </Card>
           

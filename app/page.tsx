@@ -16,6 +16,7 @@ import { truncateText } from "@/utils/string-helpers"
 import { useChatHistoryContext } from "@/contexts/chat-history-context"
 import { useUser } from "@/contexts/user-context"
 import { PromptHistory } from "@/components/prompt-history"
+import { WelcomeSection } from "@/components/welcome-section"
 // import AdSlot from "@/components/AdSlot"
 import VideoAd from "@/components/VideoAd"
 import ResponsiveAdSlot from "@/components/ResponsiveAdSlot"
@@ -457,7 +458,10 @@ export default function HomePage() {
     
     // Set a timeout to abort the request if it takes too long
     const timeoutId = setTimeout(() => {
-      controller.abort()
+      // Check if this controller is still the current one and provide abort reason
+      if (abortControllerRef.current === controller) {
+        controller.abort('Request timeout exceeded')
+      }
     }, 20000) // 20 seconds timeout
     
     // Add timeout to close loading ad if request takes too long
@@ -574,7 +578,10 @@ export default function HomePage() {
           
           // Set a new timeout for the fallback request
           fallbackTimeoutId = setTimeout(() => {
-            fallbackController.abort()
+            // Check if this controller is still the current one and provide abort reason
+            if (abortControllerRef.current === fallbackController) {
+              fallbackController.abort('Fallback request timeout exceeded')
+            }
           }, 20000) // 20 seconds timeout
           
           const fallbackResponse = await fetch('/api/ask', {
@@ -674,7 +681,7 @@ export default function HomePage() {
   const cancelApiRequest = useCallback(() => {
     if (abortControllerRef.current) {
       console.log('Cancelling API request')
-      abortControllerRef.current.abort()
+      abortControllerRef.current.abort('User cancelled request')
       setIsLoading(false)
       setError('Request cancelled')
       
@@ -1018,16 +1025,7 @@ export default function HomePage() {
                 }}
               />
             ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <div className="max-w-md space-y-4">
-                  <h3 className="text-xl font-medium">Welcome to BibScrip</h3>
-                  <p className="text-muted-foreground">Enter a question about the Bible, scripture, or faith to see AI-powered answers with referenced verses.</p>
-                  <div className="p-4 border border-dashed rounded-lg border-muted-foreground/50">
-                    <p className="italic text-sm">"Thy word is a lamp unto my feet, and a light unto my path."</p>
-                    <p className="text-xs text-muted-foreground mt-2">Psalm 119:105</p>
-                  </div>
-                </div>
-              </div>
+              <WelcomeSection />
             )}
           </div>
         </div>
