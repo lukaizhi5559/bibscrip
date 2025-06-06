@@ -230,15 +230,76 @@ async function askGemini(question: string, signal?: AbortSignal): Promise<string
  * @param options Optional parameters including timeout and starting provider
  * @returns A Promise resolving to the AI's answer string, or an object with error details and attempted providers if all fail.
  */
+// DeepSeek API implementation
+async function askDeepSeek(question: string, signal?: AbortSignal): Promise<string | null> {
+  console.log('Attempting DeepSeek...');
+
+  if (!process.env.DEEPSEEK_API_KEY) {
+    console.warn('DeepSeek API key not configured. Skipping DeepSeek.');
+    return null;
+  }
+
+  try {
+    // Using DeepSeek-Coder or DeepSeek-Chat API (using the more versatile Chat API here)
+    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat', // Use the latest available model
+        messages: [
+          { role: 'system', content: BIBSCRIP_SYSTEM_INSTRUCTIONS },
+          { role: 'user', content: question }
+        ],
+        max_tokens: 2000,
+        temperature: 0.7,
+      }),
+      signal, // Pass the signal directly to fetch
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`DeepSeek API error: ${response.status} ${response.statusText}`, errorText);
+      // Re-throw for critical errors that should trigger fallback
+      if (response.status === 429 || (response.status >= 500 && response.status < 600)) {
+        throw new Error(`DeepSeek API critical error: ${response.status}`);
+      }
+      return null;
+    }
+
+    const data = await response.json();
+    const deepseekResponseText = data.choices?.[0]?.message?.content;
+    
+    if (deepseekResponseText) {
+      console.log('DeepSeek success.');
+      return deepseekResponseText.trim();
+    }
+    console.warn('DeepSeek response did not contain expected content:', data);
+    return null;
+  } catch (error: any) {
+    console.error('DeepSeek API request failed:', error.message);
+    
+    // Re-throw specific errors that should trigger fallback
+    if (error.status === 429 || (error.status >= 500 && error.status < 600) || 
+        error.message.includes('rate limit') || error.message.includes('timeout')) {
+      throw new Error(`DeepSeek API critical error: ${error.message}`);
+    }
+    
+    return null; // For other errors, don't trigger fallback
+  }
+}
+
 export async function getAIResponse(
   question: string, 
   options?: { 
-    startProvider?: 'openai' | 'mistral' | 'claude' | 'gemini',
+    startProvider?: 'deepseek' | 'openai' | 'claude' | 'gemini' | 'mistral',
     timeoutMs?: number,
     signal?: AbortSignal 
   }
-): Promise<string | { error: string, attemptedProviders: ('openai' | 'mistral' | 'claude' | 'gemini')[] }> {
-  const startProvider = options?.startProvider || 'openai';
+): Promise<string | { error: string, attemptedProviders: ('deepseek' | 'openai' | 'claude' | 'gemini' | 'mistral')[] }> {
+  const startProvider = options?.startProvider || 'deepseek';
   const timeoutMs = options?.timeoutMs;
   const externalSignal = options?.signal;
   
@@ -286,10 +347,35 @@ export async function getAIResponse(
   const requestSignal = controller?.signal || externalSignal;
   
   // Track which providers we've attempted
-  const attemptedProviders: ('openai' | 'mistral' | 'claude' | 'gemini')[] = [];
+  const attemptedProviders: ('deepseek' | 'openai' | 'claude' | 'gemini' | 'mistral')[] = [];
 
-  // 1. Try OpenAI if starting with it
-  if (startProvider === 'openai') {
+  // 1. Try DeepSeek if starting with it
+  if (startProvider === 'deepseek') {
+    try {
+      attemptedProviders.push('deepseek');
+      const deepseekResponse = await askDeepSeek(question, requestSignal);
+      if (deepseekResponse) {
+        cleanup();
+        return deepseekResponse;
+      }
+      console.log('DeepSeek did not return a response or failed non-critically, trying OpenAI...');
+    } catch (deepseekError: any) {
+      // Check if it was aborted due to timeout or external signal
+      if (deepseekError.name === 'AbortError') {
+        console.log('DeepSeek request aborted, falling back to OpenAI...');
+        // If this was from an external signal requesting full abort, re-throw
+        if (externalSignal?.aborted) {
+          cleanup();
+          throw deepseekError;
+        }
+      } else {
+        console.warn(`DeepSeek critical failure (${(deepseekError as Error).message}), trying OpenAI...`);
+      }
+    }
+  }
+
+  // 2. Try OpenAI if starting with it or DeepSeek failed
+  if (startProvider === 'openai' || startProvider === 'deepseek') {
     try {
       attemptedProviders.push('openai');
       const openaiResponse = await askOpenAI(question, requestSignal);
@@ -297,89 +383,91 @@ export async function getAIResponse(
         cleanup();
         return openaiResponse;
       }
-      console.log('OpenAI did not return a response or failed non-critically, trying Mistral...');
+      console.log('OpenAI did not return a response or failed non-critically, trying Claude...');
     } catch (openaiError: any) {
       // Check if it was aborted due to timeout or external signal
       if (openaiError.name === 'AbortError') {
-        console.log('OpenAI request aborted, falling back to Mistral...');
+        console.log('OpenAI request aborted, falling back to Claude...');
         // If this was from an external signal requesting full abort, re-throw
         if (externalSignal?.aborted) {
           cleanup();
           throw openaiError;
         }
       } else {
-        console.warn(`OpenAI critical failure (${(openaiError as Error).message}), trying Mistral...`);
-      }
-    }
-  }
-
-  // 2. Try Mistral if starting with it or OpenAI failed
-  if (startProvider === 'mistral' || startProvider === 'openai') {
-    try {
-      attemptedProviders.push('mistral');
-      const mistralResponse = await askMistral(question, requestSignal);
-      if (mistralResponse) {
-        cleanup();
-        return mistralResponse;
-      }
-      console.log('Mistral did not return a response or failed non-critically, trying Claude...');
-    } catch (mistralError: any) {
-      // Check if it was aborted due to timeout or external signal
-      if (mistralError.name === 'AbortError') {
-        console.log('Mistral request aborted, falling back to Claude...');
-        // If this was from an external signal requesting full abort, re-throw
-        if (externalSignal?.aborted) {
-          cleanup();
-          throw mistralError;
-        }
-      } else {
-        console.warn(`Mistral critical failure (${(mistralError as Error).message}), trying Claude...`);
+        console.warn(`OpenAI critical failure (${(openaiError as Error).message}), trying Claude...`);
       }
     }
   }
 
   // 3. Try Claude as next provider
-  try {
-    attemptedProviders.push('claude');
-    const claudeResponse = await askClaude(question, requestSignal);
-    if (claudeResponse) {
-      cleanup();
-      return claudeResponse;
-    }
-    console.log('Claude did not return a response or failed non-critically, trying Gemini...');
-  } catch (claudeError: any) {
-    // Check if it was aborted due to timeout or external signal
-    if (claudeError.name === 'AbortError') {
-      console.log('Claude request aborted, falling back to Gemini...');
-      // If this was from an external signal requesting full abort, re-throw
-      if (externalSignal?.aborted) {
+  if (startProvider === 'claude' || startProvider === 'openai' || startProvider === 'deepseek') {
+    try {
+      attemptedProviders.push('claude');
+      const claudeResponse = await askClaude(question, requestSignal);
+      if (claudeResponse) {
         cleanup();
-        throw claudeError;
+        return claudeResponse;
       }
-    } else {
-      console.warn(`Claude critical failure (${(claudeError as Error).message}), trying Gemini...`);
+      console.log('Claude did not return a response or failed non-critically, trying Gemini...');
+    } catch (claudeError: any) {
+      // Check if it was aborted due to timeout or external signal
+      if (claudeError.name === 'AbortError') {
+        console.log('Claude request aborted, falling back to Gemini...');
+        // If this was from an external signal requesting full abort, re-throw
+        if (externalSignal?.aborted) {
+          cleanup();
+          throw claudeError;
+        }
+      } else {
+        console.warn(`Claude critical failure (${(claudeError as Error).message}), trying Gemini...`);
+      }
     }
   }
   
-  // 4. Try Gemini as last resort
-  try {
-    attemptedProviders.push('gemini');
-    const geminiResponse = await askGemini(question, requestSignal);
-    if (geminiResponse) {
-      cleanup();
-      return geminiResponse;
+  // 4. Try Gemini next
+  if (startProvider === 'gemini' || startProvider === 'claude' || startProvider === 'openai' || startProvider === 'deepseek') {
+    try {
+      attemptedProviders.push('gemini');
+      const geminiResponse = await askGemini(question, requestSignal);
+      if (geminiResponse) {
+        cleanup();
+        return geminiResponse;
+      }
+      console.log('Gemini did not return a response or failed non-critically, trying Mistral...');
+    } catch (geminiError: any) {
+      // Check if it was aborted due to timeout or external signal
+      if (geminiError.name === 'AbortError') {
+        console.log('Gemini request aborted, falling back to Mistral...');
+        // If this was from an external signal requesting full abort, re-throw
+        if (externalSignal?.aborted) {
+          cleanup();
+          throw geminiError;
+        }
+      } else {
+        console.warn(`Gemini critical failure (${(geminiError as Error).message}), trying Mistral...`);
+      }
     }
-  } catch (geminiError: any) {
+  }
+
+  // 5. Try Mistral as last resort
+  try {
+    attemptedProviders.push('mistral');
+    const mistralResponse = await askMistral(question, requestSignal);
+    if (mistralResponse) {
+      cleanup();
+      return mistralResponse;
+    }
+  } catch (mistralError: any) {
     // Check if it was aborted due to timeout or external signal
-    if (geminiError.name === 'AbortError') {
-      console.log('Gemini request aborted, all providers failed.');
+    if (mistralError.name === 'AbortError') {
+      console.log('Mistral request aborted, all providers failed.');
       // If this was from an external signal, we need to re-throw
       if (externalSignal?.aborted) {
         cleanup();
-        throw geminiError;
+        throw mistralError;
       }
     } else {
-      console.warn(`Gemini critical failure (${(geminiError as Error).message}). All providers attempted.`);
+      console.warn(`Mistral critical failure (${(mistralError as Error).message}), all providers failed.`);
     }
   }
 

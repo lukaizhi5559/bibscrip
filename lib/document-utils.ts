@@ -30,6 +30,20 @@ export async function exportToPdf(content: DocumentContent): Promise<void> {
   tempDiv.style.backgroundColor = '#ffffff';
   tempDiv.style.color = '#000000';
   
+  // Function to process markdown in text
+  const processMarkdown = (text: string) => {
+    // Convert **text** to <strong>text</strong>
+    return text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  };
+  
+  // Process the answer and verses to handle markdown
+  const processedAnswer = processMarkdown(content.answer);
+  const processedVerses = content.verses.map(verse => ({
+    ...verse,
+    reference: processMarkdown(verse.reference),
+    text: processMarkdown(verse.text)
+  }));
+  
   // Add content to the div with enhanced styling
   tempDiv.innerHTML = `
     <div style="border: 1px solid #cccccc; padding: 20px; border-radius: 8px;">
@@ -42,13 +56,13 @@ export async function exportToPdf(content: DocumentContent): Promise<void> {
       
       <div style="margin-bottom: 30px;">
         <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 10px; color: #000000; border-bottom: 2px solid #3366cc; padding-bottom: 5px;">Answer</h2>
-        <p style="margin-bottom: 0; color: #000000; font-size: 16px; line-height: 1.5;">${content.answer.replace(/\n/g, '<br/>')}</p>
+        <p style="margin-bottom: 0; color: #000000; font-size: 16px; line-height: 1.5;">${processedAnswer.replace(/\n/g, '<br/>')}</p>
       </div>
       
-      ${content.verses.length > 0 ? `
+      ${processedVerses.length > 0 ? `
       <div style="margin-bottom: 30px;">
         <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 15px; color: #000000; border-bottom: 2px solid #3366cc; padding-bottom: 5px;">Referenced Verses</h2>
-        ${content.verses.map(verse => `
+        ${processedVerses.map(verse => `
           <div style="margin-bottom: 20px; padding: 10px; border-left: 4px solid #3366cc; background-color: #f8f8f8;">
             <h3 style="font-size: 18px; font-weight: bold; color: #000000; margin-bottom: 8px;">${verse.reference} ${verse.translation ? `(${verse.translation})` : ''}</h3>
             <p style="color: #000000; font-size: 16px; margin: 0; font-style: italic;">${verse.text}</p>
@@ -110,6 +124,19 @@ export async function exportToPdf(content: DocumentContent): Promise<void> {
  * Exports Bible study content to DOCX format
  */
 export async function exportToDocx(content: DocumentContent): Promise<void> {
+  // Function to process markdown in text for Word documents
+  const processMarkdown = (text: string) => {
+    // Remove markdown formatting since we'll apply style in Word
+    return text.replace(/\*\*(.+?)\*\*/g, '$1');
+  };
+  
+  // Process the answer and verses to handle markdown
+  const processedAnswer = processMarkdown(content.answer);
+  const processedVerses = content.verses.map(verse => ({
+    ...verse,
+    reference: processMarkdown(verse.reference),
+    text: processMarkdown(verse.text)
+  }));
   // Create a new document
   const doc = new Document({
     sections: [{
@@ -155,13 +182,13 @@ export async function exportToDocx(content: DocumentContent): Promise<void> {
         ),
         
         // Verses section (if any)
-        ...(content.verses.length > 0 ? [
+        ...(processedVerses.length > 0 ? [
           new Paragraph({
             text: "Referenced Verses",
             heading: HeadingLevel.HEADING_2,
             spacing: { before: 400 },
           }),
-          ...content.verses.flatMap(verse => [
+          ...processedVerses.flatMap(verse => [
             new Paragraph({
               text: `${verse.reference} ${verse.translation ? `(${verse.translation})` : ''}`,
               heading: HeadingLevel.HEADING_3,
@@ -204,6 +231,19 @@ export async function exportToDocx(content: DocumentContent): Promise<void> {
  * Exports Bible study content to Excel format
  */
 export async function exportToExcel(content: DocumentContent): Promise<void> {
+  // Function to process markdown in text for Excel
+  const processMarkdown = (text: string) => {
+    // Remove markdown formatting for plain text in Excel
+    return text.replace(/\*\*(.+?)\*\*/g, '$1');
+  };
+  
+  // Process the answer and verses to handle markdown
+  const processedAnswer = processMarkdown(content.answer);
+  const processedVerses = content.verses.map(verse => ({
+    ...verse,
+    reference: processMarkdown(verse.reference),
+    text: processMarkdown(verse.text)
+  }));
   // Create workbook and worksheet
   const wb = XLSX.utils.book_new();
   
@@ -214,11 +254,11 @@ export async function exportToExcel(content: DocumentContent): Promise<void> {
     ['Question', content.question],
     [],
     ['Answer'],
-    ...content.answer.split('\n').map(line => [line]),
+    ...processedAnswer.split('\n').map(line => [line]),
   ];
   
   // Add verses if available
-  if (content.verses.length > 0) {
+  if (processedVerses.length > 0) {
     mainData.push(
       [],
       ['Referenced Verses'],
@@ -250,7 +290,7 @@ export async function exportToExcel(content: DocumentContent): Promise<void> {
   XLSX.utils.book_append_sheet(wb, ws, 'BibScrip Study');
   
   // Create a separate verses worksheet if there are verses
-  if (content.verses.length > 0) {
+  if (processedVerses.length > 0) {
     const versesData = [
       ['Reference', 'Translation', 'Text']
     ];
