@@ -118,9 +118,30 @@ function constructBibleGatewayLink(passage: string, translationId: string): stri
 function constructBibleGatewayFallback(reference: string, translation: string): BibleVerse {
   const gatewayLink = constructBibleGatewayLink(reference, translation);
   
+  // Sample text for common verses when API fails
+  const commonVerses: Record<string, string> = {
+    'john 3:16': 'For God so loved the world that he gave his one and only Son, that whoever believes in him shall not perish but have eternal life.',
+    'genesis 1:1': 'In the beginning God created the heavens and the earth.',
+    'psalm 23:1': 'The Lord is my shepherd, I lack nothing.',
+    'romans 8:28': 'And we know that in all things God works for the good of those who love him, who have been called according to his purpose.',
+    'philippians 4:13': 'I can do all this through him who gives me strength.',
+    'jeremiah 29:11': 'For I know the plans I have for you," declares the Lord, "plans to prosper you and not to harm you, plans to give you hope and a future.',
+    'proverbs 3:5-6': 'Trust in the Lord with all your heart and lean not on your own understanding; in all your ways submit to him, and he will make your paths straight.',
+    'matthew 28:19-20': 'Therefore go and make disciples of all nations, baptizing them in the name of the Father and of the Son and of the Holy Spirit, and teaching them to obey everything I have commanded you. And surely I am with you always, to the very end of the age.',
+    'romans 3:23': 'For all have sinned and fall short of the glory of God.',
+    'john 14:6': 'Jesus answered, "I am the way and the truth and the life. No one comes to the Father except through me.'
+  };
+  
+  // Normalize the reference for lookup
+  const normalizedRef = reference.toLowerCase().trim().replace(/\s+/g, ' ');
+  
+  // Provide text if we have it, otherwise a helpful message
+  const text = commonVerses[normalizedRef] || 
+    `Verse text unavailable in the app. Click to view on BibleGateway.`;
+  
   return {
     ref: reference,
-    text: '',
+    text: text,
     translation,
     link: gatewayLink,
     source: 'biblegateway'

@@ -1,0 +1,44 @@
+{
+  "verses": [
+    {
+      "reference": "John 3:16",
+      "text": "For God so loved the world that he gave his one and only Son, that whoever believes in him shall not perish but have eternal life.",
+      "translation": "NIV",
+      "book": "John",
+      "chapter": 3,
+      "verse": 16
+    },
+    {
+      "reference": "Romans 8:28",
+      "text": "And we know that in all things God works for the good of those who love him, who have been called according to his purpose.",
+      "translation": "NIV",
+      "book": "Romans",
+      "chapter": 8,
+      "verse": 28
+    },
+    {
+      "reference": "Psalm 23:1",
+      "text": "The LORD is my shepherd, I lack nothing.",
+      "translation": "NIV",
+      "book": "Psalms",
+      "chapter": 23,
+      "verse": 1
+    },
+    {
+      "reference": "Philippians 4:13",
+      "text": "I can do all this through him who gives me strength.",
+      "translation": "NIV",
+      "book": "Philippians",
+      "chapter": 4,
+      "verse": 13
+    },
+    {
+      "reference": "Genesis 1:1",
+      "text": "In the beginning God created the heavens and the earth.",
+      "translation": "NIV",
+      "book": "Genesis",
+      "chapter": 1,
+      "verse": 1
+    }
+  ]
+}

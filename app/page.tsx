@@ -3,6 +3,7 @@
 import React, { FormEvent, KeyboardEvent, useCallback, useEffect, useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { vectorService } from "@/utils/vector-service"
 import { Textarea } from "@/components/ui/textarea"
 import { ChatResponseCard, type ChatResponseData, type Verse, type Commentary } from "@/components/chat-response-card"
 import { ResultsLayout } from "@/components/results-layout"
@@ -410,6 +411,19 @@ export default function HomePage() {
     setIsLoading(true)
     setError(null)
     setResultsOpen(true) // Always open results panel on submit
+    
+    // Start vector search in parallel with AI request
+    // This happens asynchronously and doesn't block the main AI flow
+    vectorService.searchSimilar(questionText, 'bible-verses', 8)
+      .then(vectorResults => {
+        console.log('Vector search results ready:', vectorResults);
+        // We don't need to do anything here as the results will be displayed
+        // in the semantic search tab in the results layout
+      })
+      .catch(err => {
+        console.error('Vector search failed:', err);
+        // Non-blocking error - the AI response will still work
+      })
     
     // Show video ad during loading for free-tier users
     if (showAds) {

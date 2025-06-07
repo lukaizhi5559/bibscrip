@@ -33,7 +33,7 @@ const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GE
 
 // Mistral API will be accessed directly via fetch // e.g., "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
 
-async function askOpenAI(question: string, signal?: AbortSignal): Promise<string | null> {
+export async function askOpenAI(question: string, signal?: AbortSignal): Promise<string | null> {
   console.log('Attempting OpenAI...');
   try {
     // Try GPT-4 Turbo first

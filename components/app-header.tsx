@@ -3,6 +3,9 @@ import Link from "next/link"
 import { BibScripLogo } from "@/components/bibscrip-logo"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
+import { Button } from "@/components/ui/button"
+import { Database } from "lucide-react"
+import VectorDBStatus from "@/components/vector-db-status"
 
 export function AppHeader() {
   const { open, isMobile } = useSidebar()
@@ -25,7 +28,15 @@ export function AppHeader() {
             // Placeholder to balance the layout when sidebar is open on desktop and logo is in sidebar
             <div style={{ width: 'auto', minWidth: isMobile ? 0 : 'var(--sidebar-width-icon)' }} />
           )}
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex items-center gap-3 ml-auto">
+            <div className="hidden sm:flex items-center gap-2">
+              <VectorDBStatus />
+            </div>
+            <Link href="/vector-search" aria-label="Vector Search">
+              <Button variant="ghost" size="icon" className="h-8 w-8" title="Vector Database Search">
+                <Database className="h-4 w-4" />
+              </Button>
+            </Link>
             <div className="relative z-50">
               <ThemeToggle />
             </div>
