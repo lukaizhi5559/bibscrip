@@ -32,7 +32,7 @@ interface ChatResponseCardProps {
 export function ChatResponseCard({ response }: ChatResponseCardProps) {
   const handleCopy = () => {
     // Basic copy functionality, can be improved with toast notifications
-    const textToCopy = `AI Answer: ${response.aiAnswer}\n\nReferenced Verses:\n${response.referencedVerses.map((v) => `${v.reference} (${v.translation || "NIV"}): ${v.text}`).join("\n")}\n\nCommentary:\n${response.commentaryExcerpts.map((c) => `${c.source}: ${c.text}`).join("\n")}`
+    const textToCopy = `AI Answer: ${response.aiAnswer}\n\nReferenced Verses:\n${response.referencedVerses.map((v) => `${v.reference} (${v.translation || "ESV"}): ${v.text}`).join("\n")}\n\nCommentary:\n${response.commentaryExcerpts.map((c) => `${c.source}: ${c.text}`).join("\n")}`
     navigator.clipboard.writeText(textToCopy).catch((err) => console.error("Failed to copy:", err))
   }
 
@@ -65,7 +65,7 @@ export function ChatResponseCard({ response }: ChatResponseCardProps) {
                 {response.referencedVerses.map((verse, index) => (
                   <div key={index} className="p-3 bg-secondary/50 rounded-md border border-border">
                     <p className="font-medium text-foreground">
-                      {verse.reference} ({verse.translation || "NIV"})
+                      {verse.reference} ({verse.translation || "ESV"})
                     </p>
                     <p className="mt-1 text-sm text-foreground/80 leading-normal">{verse.text}</p>
                     {verse.link && (

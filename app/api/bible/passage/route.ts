@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     // Extract query parameters
     const { searchParams } = new URL(request.url);
     const reference = searchParams.get('reference');
-    const translation = searchParams.get('translation') || 'NIV';
+    const translation = searchParams.get('translation') || 'ESV';
     
     if (!reference) {
       return NextResponse.json({ 

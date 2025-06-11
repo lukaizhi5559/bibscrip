@@ -8,7 +8,7 @@ import { extractVerseReferences } from '@/utils/verse-parser';
 import type { BibleVerse } from '@/utils/bible';
 
 // Common Bible translation abbreviations for detection in questions
-const TRANSLATIONS = ['NIV', 'ESV', 'KJV', 'NKJV', 'NLT', 'NASB', 'NRSV', 'MSG', 'AMP', 'CSB', 'WEB'];
+const TRANSLATIONS = ['ESV', 'KJV', 'NKJV', 'NLT', 'NASB', 'NRSV', 'MSG', 'AMP', 'CSB', 'WEB', 'NIV'];
 
 /**
  * Extract translation preference from a question string
@@ -24,7 +24,7 @@ function extractTranslationPreference(question: string): string | undefined {
     return match[1].toUpperCase();
   }
   
-  // Check for phrases like "in the NIV translation" or "using NIV"
+  // Check for phrases like "in the ESV translation" or "using ESV"
   const phraseRegex = /\b(?:in|using|from|with)\s+(?:the\s+)?([A-Z]+)(?:\s+(?:translation|version|bible))?\b/i;
   const phraseMatch = question.match(phraseRegex);
   
@@ -223,12 +223,32 @@ export async function POST(request: Request) {
       aiResponseText = 'Error: Unable to process AI response. Please try again.';
     }
     
-    // Extract verse references or use provided ones
-    const questionVerses = backendResponse.data.sources || [];
-    const aiResponseVerses = backendResponse.data.verses || extractVerseReferences(aiResponseText);
+    // Extract verse references properly
+    let extractedVerses = extractVerseReferences(aiResponseText);
     
-    // Combine both sets of verses without duplicates
-    const verseRefsToFetch = Array.from(new Set([...questionVerses, ...aiResponseVerses]));
+    // Get verse references from various possible sources in the response
+    let verseRefsFromBackend: string[] = [];
+    
+    // Check if backend provided verse references directly
+    if (backendResponse.data.verses && Array.isArray(backendResponse.data.verses)) {
+      verseRefsFromBackend = backendResponse.data.verses;
+    }
+    
+    // Also check for sources that might contain verse references
+    if (backendResponse.data.sources && Array.isArray(backendResponse.data.sources)) {
+      verseRefsFromBackend = [...verseRefsFromBackend, ...backendResponse.data.sources];
+    }
+    
+    // Use both extracted verses and any provided by backend
+    const allVerseRefs = Array.from(new Set([...extractedVerses, ...verseRefsFromBackend]));
+    
+    // For debugging
+    console.log('Extracted verse references:', extractedVerses);
+    console.log('Backend verse references:', verseRefsFromBackend);
+    console.log('Combined unique verse references:', allVerseRefs);
+    
+    // Use the combined verse references for fetching
+    const verseRefsToFetch = allVerseRefs;
     
     // Fetch Bible verses using the Bible service
     const fetchedVerses: BibleVerse[] = [];
@@ -239,18 +259,42 @@ export async function POST(request: Request) {
           return await bibleService.getVerse(ref, preferredTranslation);
         } catch (err) {
           console.error(`Error fetching verse ${ref}:`, err);
-          return null;
+          // Create a fallback verse object with the reference to prevent frontend errors
+          return {
+            ref: ref,
+            text: `Unable to retrieve verse due to API error: ${err}`,
+            translation: preferredTranslation,
+            link: `https://www.biblegateway.com/passage/?search=${encodeURIComponent(ref)}&version=${preferredTranslation}`
+          } as BibleVerse;
         }
       });
       
-      // Execute all verse fetches in parallel
-      const results = await Promise.allSettled(versePromises);
+      // Wait for all verse fetch operations to complete
+      const verses = await Promise.all(versePromises);
       
-      results.forEach(result => {
-        if (result.status === 'fulfilled' && result.value) {
-          fetchedVerses.push(result.value);
-        }
-      });
+      // Filter out null results and add to fetchedVerses
+      // Also ensure all verse objects have required fields
+      const validVerses = verses
+        .filter((verse): verse is BibleVerse => !!verse)
+        .map(verse => {
+          // Ensure all required properties exist
+          if (!verse.ref) {
+            console.warn('Verse missing ref property:', verse);
+            return null;
+          }
+          
+          // Return a complete verse object
+          return {
+            ref: verse.ref,
+            text: verse.text || 'Verse text unavailable',
+            translation: verse.translation || preferredTranslation,
+            link: verse.link || `https://www.biblegateway.com/passage/?search=${encodeURIComponent(verse.ref)}&version=${verse.translation || preferredTranslation}`
+          };
+        })
+        .filter((verse): verse is BibleVerse => !!verse);
+      
+      fetchedVerses.push(...validVerses);
+      console.log(`Successfully fetched ${validVerses.length} valid verses out of ${verseRefsToFetch.length} references`);
     }
     
     // Return the response with any fetched verses

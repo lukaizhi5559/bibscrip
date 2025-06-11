@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const book = searchParams.get('book');
     const chapter = searchParams.get('chapter');
-    const translation = searchParams.get('translation') || 'NIV';
+    const translation = searchParams.get('translation') || 'ESV';
     
     if (!book || !chapter) {
       return NextResponse.json({ 

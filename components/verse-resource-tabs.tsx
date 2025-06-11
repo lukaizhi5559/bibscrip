@@ -69,7 +69,7 @@ export default function VerseResourceTabs({ verse, defaultTab = 'text' }: VerseR
   
   // Get translation code for Bible resources
   const getTranslationCode = (fullTranslation: string | undefined): string => {
-    if (!fullTranslation) return 'NIV';
+    if (!fullTranslation) return 'ESV';
     
     // If it's already a code (likely 2-5 characters), use it directly
     if (fullTranslation.length <= 5 && fullTranslation === fullTranslation.toUpperCase()) {
@@ -94,9 +94,9 @@ export default function VerseResourceTabs({ verse, defaultTab = 'text' }: VerseR
       return 'NASB'; 
     }
     
-    // If we can't determine the translation, default to NIV
-    console.log('Unknown translation:', fullTranslation, '- defaulting to NIV');
-    return 'NIV';
+    // If we can't determine the translation, default to ESV
+    console.log('Unknown translation:', fullTranslation, '- defaulting to ESV');
+    return 'ESV';
   };
   
   // Use proper translation code for BibleGateway

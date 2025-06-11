@@ -14,7 +14,7 @@ const AddVerse: React.FC = () => {
   const [verse, setVerse] = useState({
     text: '',
     reference: '',
-    translation: 'NIV'
+    translation: 'ESV'
   });
   const [status, setStatus] = useState({ loading: false, message: '', error: false });
 
@@ -38,7 +38,7 @@ const AddVerse: React.FC = () => {
         message: `Verse added successfully with ID: ${id}`,
         error: false
       });
-      setVerse({ text: '', reference: '', translation: 'NIV' });
+      setVerse({ text: '', reference: '', translation: 'ESV' });
     } catch (err) {
       setStatus({
         loading: false,
@@ -89,12 +89,12 @@ const AddVerse: React.FC = () => {
                 <SelectValue placeholder="Select a translation" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="NIV">NIV</SelectItem>
                 <SelectItem value="KJV">KJV</SelectItem>
                 <SelectItem value="ESV">ESV</SelectItem>
                 <SelectItem value="NLT">NLT</SelectItem>
                 <SelectItem value="NASB">NASB</SelectItem>
                 <SelectItem value="CSB">CSB</SelectItem>
+                <SelectItem value="NIV">NIV</SelectItem>
               </SelectContent>
             </Select>
           </div>

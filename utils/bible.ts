@@ -17,7 +17,6 @@ interface TranslationInfo {
 
 // A map of common translations with their IDs for different sources
 const TRANSLATION_MAP: Record<string, TranslationInfo> = {
-  'NIV': { id: 'niv', name: 'New International Version', source: 'biblegateway' },
   'ESV': { id: 'esv', name: 'English Standard Version', source: 'biblegateway' },
   'KJV': { id: 'kjv', name: 'King James Version', source: 'bible-api' },
   'NKJV': { id: 'nkjv', name: 'New King James Version', source: 'biblegateway' },
@@ -31,6 +30,7 @@ const TRANSLATION_MAP: Record<string, TranslationInfo> = {
   'ASV': { id: 'asv', name: 'American Standard Version', source: 'bible-api' },
   'DARBY': { id: 'darby', name: 'Darby Translation', source: 'bible-api' },
   'YLT': { id: 'ylt', name: 'Youngs Literal Translation', source: 'bible-api' },
+  'NIV': { id: 'niv', name: 'New International Version', source: 'biblegateway' },
 };
 
 // Default translation when none is specified
@@ -46,7 +46,7 @@ const DEFAULT_TRANSLATION = 'WEB';
  */
 export async function fetchBibleVerse(
   reference: string, 
-  translation: string = 'NIV',
+  translation: string = 'ESV',
   options?: {
     signal?: AbortSignal
   }

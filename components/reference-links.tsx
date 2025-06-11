@@ -19,15 +19,15 @@ interface ReferenceLinksProps {
  */
 export function ReferenceLinks({
   passage,
-  translations = ['NIV'],
+  translations = ['ESV'],
   showBibleGateway = true,
   showBibleHub = true,
   showBlueLetterBible = true,
   bibleGatewayLink,
 }: ReferenceLinksProps) {
   // Ensure translations is always a valid array with at least one item
-  const safeTranslations = (!translations || translations.length === 0) ? ['NIV'] : 
-    translations.map(t => t || 'NIV');
+  const safeTranslations = (!translations || translations.length === 0) ? ['ESV'] : 
+    translations.map(t => t || 'ESV');
      
   // Navigate to the Bible Verses tab and trigger click on the appropriate resource tab
   const navigateToResource = (resourceType: 'biblegateway' | 'biblehub' | 'blueletterbible') => {

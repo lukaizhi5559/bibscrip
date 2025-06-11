@@ -105,7 +105,7 @@ export function DevotionalCard({
           <div className="mt-2">
             <ReferenceLinks 
               passage={mainVerse.reference} 
-              translations={[mainVerse.translation || 'NIV']} 
+              translations={[mainVerse.translation || 'ESV']} 
             />
           </div>
         </div>
@@ -142,7 +142,7 @@ export function DevotionalCard({
                   <div className="mt-2">
                     <ReferenceLinks 
                       passage={verse.reference} 
-                      translations={[verse.translation || 'NIV']} 
+                      translations={[verse.translation || 'ESV']} 
                     />
                   </div>
                 </div>

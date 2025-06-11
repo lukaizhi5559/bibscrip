@@ -138,7 +138,7 @@ export function ResultsLayout({
   const processedVerses = verses.map(verse => ({
     ...verse,
     ref: verse.ref || 'Unknown Reference',
-    translation: verse.translation || 'NIV',
+    translation: verse.translation || 'ESV',
     link: verse.link || ''
   }));
   
@@ -150,7 +150,7 @@ export function ResultsLayout({
   const uniqueTranslations = Array.from(
     new Set(verses.map(verse => {
       // Safe check to avoid splitting undefined
-      if (!verse || !verse.translation) return 'NIV';
+      if (!verse || !verse.translation) return 'ESV';
       return verse.translation.split(' ')[0];
     }))
   );
@@ -328,7 +328,7 @@ export function ResultsLayout({
                       <div className="mt-2">
                         <ReferenceLinks 
                           passage={verse.ref} 
-                          translations={[verse.translation || 'NIV']}
+                          translations={[verse.translation || 'ESV']}
                           bibleGatewayLink={verse.link}
                         />
                       </div>
@@ -546,13 +546,13 @@ export function ResultsLayout({
               mainVerse={{
                 reference: verses[0]?.ref || "Philippians 4:6-7",
                 text: verses[0]?.text || "Do not be anxious about anything, but in every situation, by prayer and petition, with thanksgiving, present your requests to God. And the peace of God, which transcends all understanding, will guard your hearts and your minds in Christ Jesus.",
-                translation: verses[0]?.translation ? verses[0].translation : "NIV"
+                translation: verses[0]?.translation ? verses[0].translation : "ESV"
               }}
               additionalVerses={[
                 {
                   reference: "Isaiah 26:3",
                   text: "You will keep in perfect peace those whose minds are steadfast, because they trust in you.",
-                  translation: "NIV"
+                  translation: "ESV"
                 }
               ]}
               categories={["Peace", "Trust", "Prayer"]}

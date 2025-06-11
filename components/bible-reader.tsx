@@ -13,11 +13,11 @@ import { VerseExplainer } from './verse-explainer';
 
 // Translation options will be loaded from API
 const DEFAULT_TRANSLATIONS = [
-  { id: 'NIV', name: 'New International Version' },
-  { id: 'ESV', name: 'English Standard Version' },
-  { id: 'KJV', name: 'King James Version' },
-  { id: 'NASB', name: 'New American Standard Bible' },
-  { id: 'NLT', name: 'New Living Translation' }
+  { id: 'ESV', name: 'English Standard Version', abbreviation: 'ESV' },
+  { id: 'KJV', name: 'King James Version', abbreviation: 'KJV' },
+  { id: 'NASB', name: 'New American Standard Bible', abbreviation: 'NASB' },
+  { id: 'NLT', name: 'New Living Translation', abbreviation: 'NLT' },
+  { id: 'NIV', name: 'New International Version', abbreviation: 'NIV' },
 ];
 
 // Use the original BibleVerse type directly
@@ -25,7 +25,7 @@ type BibleVerse = OriginalBibleVerse;
 
 export function BibleReader() {
   const [passageRef, setPassageRef] = useState<string>('John 3:16');
-  const [translation, setTranslation] = useState<string>('NIV');
+  const [translation, setTranslation] = useState<string>('ESV');
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [verses, setVerses] = useState<BibleVerse[]>([]);
@@ -33,7 +33,7 @@ export function BibleReader() {
   const [currentBook, setCurrentBook] = useState<string>('');
   const [showExplainer, setShowExplainer] = useState<boolean>(false);
   const [selectedVerse, setSelectedVerse] = useState<BibleVerse | null>(null);
-  const [translations, setTranslations] = useState<{id: string, name: string}[]>(DEFAULT_TRANSLATIONS);
+  const [translations, setTranslations] = useState<{id: string, name: string, abbreviation: string}[]>(DEFAULT_TRANSLATIONS);
 
   // Load the initial verse and available translations on component mount
   useEffect(() => {
@@ -44,12 +44,52 @@ export function BibleReader() {
   // Load available translations from the API
   const loadTranslations = async () => {
     try {
+      console.log('Fetching Bible translations...');
       const translationData = await bibleService.getTranslations();
-      if (translationData && translationData.length > 0) {
-        setTranslations(translationData.map(t => ({ id: t.id, name: t.name })));
+      console.log('Translation API response:', translationData);
+      
+      if (translationData && Array.isArray(translationData) && translationData.length > 0) {
+        console.log('Setting translations from API:', translationData);
+        console.log('First translation object sample:', translationData[0]);
+        
+        // Check if translationData has the expected structure
+        // Filter to only include translations with abbreviations
+        const standardTranslations = translationData
+          .filter(t => {
+            // Check if this translation has an abbreviation field or we can extract one
+            return t.abbreviation || 
+                   (t.id && t.id.length <= 6) || // Short IDs like NIV, ESV, KJV
+                   false;
+          })
+          .map(t => {
+            return { 
+              id: t.id, 
+              name: t.name || t.description || '',
+              abbreviation: t.abbreviation || t.id.substring(0, 6)
+            };
+          });
+          
+        console.log('Filtered standard translations:', standardTranslations);
+        
+        // If we found standard translations, use those, otherwise use the raw data
+        if (standardTranslations.length > 0) {
+          setTranslations(standardTranslations);
+        } else {
+          // Just use first 10 translations if there are too many
+          const limitedTranslations = translationData.slice(0, 10);
+          setTranslations(limitedTranslations.map(t => ({
+            id: t.id,
+            name: t.name || t.description || '',
+            abbreviation: t.abbreviation || t.id.substring(0, 6)
+          })));
+        }
+      } else {
+        console.warn('Translation data was empty or invalid, using defaults');
+        console.log('Translation data received:', translationData);
       }
     } catch (err) {
       console.error('Error loading translations:', err);
+      console.log('Falling back to default translations');
       // Fall back to default translations if API fails
     }
   };
@@ -170,12 +210,12 @@ export function BibleReader() {
             />
             <Select value={translation} onValueChange={handleTranslationChange}>
               <SelectTrigger className="w-24">
-                <SelectValue placeholder="NIV" />
+                <SelectValue placeholder="ESV" />
               </SelectTrigger>
               <SelectContent>
                 {translations.map((t) => (
                   <SelectItem key={t.id} value={t.id}>
-                    {t.id}
+                    {t.abbreviation} - {t.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -219,7 +259,7 @@ export function BibleReader() {
 
               <TooltipProvider>
                 <div className="space-y-4">
-                  {verses.map((verse, index) => (
+                  {verses.filter(verse => verse && verse.ref).map((verse, index) => (
                     <Tooltip key={index}>
                       <TooltipTrigger asChild>
                         <div
