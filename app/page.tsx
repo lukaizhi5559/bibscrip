@@ -395,8 +395,9 @@ export default function HomePage() {
     }
   }, [isLoading])
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
+  const handleSubmit = async (e?: FormEvent<HTMLFormElement>) => {
+    // Only prevent default if event is provided
+    e?.preventDefault()
     
     // Don't submit if already loading
     if (isLoading) return
@@ -406,6 +407,15 @@ export default function HomePage() {
     
     // Save the question text before setting loading state
     const questionText = inputValue.trim() // Store the cleaned input
+    console.log('Question text before API call:', questionText, typeof questionText)
+    
+    // Extra validation to prevent undefined questions
+    if (!questionText) {
+      console.error('Question text is empty or invalid')
+      setError('Your question cannot be empty. Please try again.')
+      return
+    }
+    
     setLastQuestion(questionText)
     setInputValue("") // Clear the textarea immediately
     setIsLoading(true)
@@ -493,8 +503,10 @@ export default function HomePage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          question: questionText,
-          timeoutEnabled: true // Tell backend we're handling timeouts
+          question: questionText || "", // Ensure question is never undefined
+          options: {
+            timeoutEnabled: true // Tell backend we're handling timeouts
+          }
         }),
         signal // Attach the abort signal to the fetch request
       })
@@ -604,7 +616,7 @@ export default function HomePage() {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({ 
-              question: questionText,
+              question: questionText || "", // Ensure question is never undefined
               useFallback: true // Tell backend to use the next provider in the chain
             }),
             signal: fallbackSignal // Attach the new abort signal
@@ -853,7 +865,9 @@ export default function HomePage() {
                     } else {
                       // Plain Enter without modifiers - submit form
                       e.preventDefault();
-                      handleSubmit(e as unknown as FormEvent<HTMLFormElement>);
+                      // Don't pass the event, just call handleSubmit directly
+                      // This ensures the function uses the current inputValue state
+                      handleSubmit();
                     }
                   }
                 }}

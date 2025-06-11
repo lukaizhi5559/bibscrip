@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { API_BASE_URL } from '@/lib/api-config';
+import axios from 'axios';
 
-// In a production setup, you'd use a proper database or analytics service 
-// like Firebase Analytics, Vercel KV, or a custom solution
-// This is a simple in-memory implementation for the demo/development
-
-// Accumulate events in memory (not suitable for production)
-// In production, use a dedicated database/store
-let analyticsEvents: any[] = [];
+// Config for Edge runtime
+export const runtime = 'edge';
 
 /**
  * POST handler for recording analytics events
- * Supports Edge runtime for optimal performance
+ * Proxies events to the backend analytics service
  */
 export async function POST(request: NextRequest) {
   try {
@@ -21,104 +18,91 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid events format, array expected' }, { status: 400 });
     }
     
-    // Add events to our store
-    analyticsEvents.push(...events);
-    
-    // In a production environment, we would:
-    // 1. Validate events
-    // 2. Store in a database
-    // 3. Process for dashboards or export to analytics service
-    
-    // Log event count for development
-    console.log(`Received ${events.length} analytics events. Total stored: ${analyticsEvents.length}`);
-    
-    // Basic memory management - cap the number of events we store in memory
-    if (analyticsEvents.length > 1000) {
-      // Keep only the most recent 1000 events
-      analyticsEvents = analyticsEvents.slice(-1000);
+    // In development mode, log the events to the console
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Forwarding ${events.length} analytics events to backend`);
     }
     
-    return NextResponse.json({ success: true, eventsReceived: events.length });
+    try {
+      // Forward events to backend analytics service
+      // The endpoint for analytics event collection should be available in the API config
+      // If not explicitly defined, we can construct it from the API_BASE_URL
+      const analyticsEndpoint = `${API_BASE_URL}/analytics/events`;
+      
+      const response = await axios.post(analyticsEndpoint, { events }, {
+        timeout: 5000 // 5 second timeout, since analytics shouldn't block the UI
+      });
+      
+      return NextResponse.json({ 
+        success: true, 
+        eventsReceived: events.length,
+        backendResponse: response.data
+      });
+    } catch (error) {
+      // Log error but don't fail the request - analytics errors shouldn't affect user experience
+      console.error('Error forwarding analytics to backend:', error);
+      
+      // Still return success to the client to avoid disrupting the application
+      return NextResponse.json({ 
+        success: true,
+        eventsReceived: events.length,
+        backendError: process.env.NODE_ENV === 'development' ? String(error) : 'Analytics service unavailable'
+      });
+    }
   } catch (error) {
-    console.error('Analytics POST error:', error);
+    console.error('Analytics POST parsing error:', error);
     return NextResponse.json({ error: 'Analytics processing error' }, { status: 500 });
   }
 }
 
 /**
  * GET handler to retrieve analytics summary
- * For admin/monitoring purposes
+ * Proxies to backend analytics service for data retrieval
  */
 export async function GET(request: NextRequest) {
   try {
-    // Check for authentication in a real-world scenario
+    // Pass through query parameters to the backend
     const { searchParams } = new URL(request.url);
     const format = searchParams.get('format') || 'summary';
+    const timeframe = searchParams.get('timeframe') || '7d'; // default to 7 days
     
-    if (format === 'raw' && analyticsEvents.length > 0) {
-      // Return raw events (with pagination in a real implementation)
-      return NextResponse.json({ events: analyticsEvents });
+    try {
+      // Forward to backend analytics service
+      // The endpoint for analytics data retrieval
+      const analyticsEndpoint = `${API_BASE_URL}/analytics/data`;
+      
+      const response = await axios.get(analyticsEndpoint, {
+        params: {
+          format,
+          timeframe
+        },
+        timeout: 10000 // 10 second timeout
+      });
+      
+      // Forward the backend response directly
+      return NextResponse.json(response.data);
+    } catch (error: any) {
+      // Handle errors from the backend
+      if (error.response) {
+        // The backend service returned an error response
+        return NextResponse.json(
+          { 
+            error: error.response.data.error || 'Analytics service error',
+            details: process.env.NODE_ENV === 'development' ? error.response.data : undefined
+          },
+          { status: error.response.status || 500 }
+        );
+      }
+      
+      // Network error, timeout, etc
+      console.error('Analytics GET error:', error);
+      return NextResponse.json(
+        { error: 'Failed to connect to analytics service' },
+        { status: 503 }
+      );
     }
-    
-    // Calculate some basic summary statistics
-    const now = Date.now();
-    const oneDayAgo = now - 24 * 60 * 60 * 1000;
-    const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000;
-    
-    // Filter AI request events
-    const aiEvents = analyticsEvents.filter(event => event.eventType === 'ai_request');
-    const cacheEvents = analyticsEvents.filter(event => event.eventType === 'cache_operation');
-    
-    // Calculate summary metrics
-    const summary = {
-      total: {
-        aiRequests: aiEvents.length,
-        cacheOperations: cacheEvents.length,
-        rateLimitEvents: analyticsEvents.filter(e => e.eventType === 'rate_limit').length
-      },
-      timeWindows: {
-        last24Hours: aiEvents.filter(e => e.timestamp > oneDayAgo).length,
-        lastWeek: aiEvents.filter(e => e.timestamp > oneWeekAgo).length
-      },
-      cacheStats: {
-        hits: cacheEvents.filter(e => e.metadata.operation === 'hit').length,
-        misses: cacheEvents.filter(e => e.metadata.operation === 'miss').length,
-        hitRatio: 0
-      },
-      providers: {} as Record<string, { count: number; cachedCount: number; estimatedCost: number }>
-    };
-    
-    // Calculate cache hit ratio
-    const totalCacheOps = summary.cacheStats.hits + summary.cacheStats.misses;
-    if (totalCacheOps > 0) {
-      summary.cacheStats.hitRatio = summary.cacheStats.hits / totalCacheOps;
-    }
-    
-    // Calculate provider stats
-    aiEvents.forEach(event => {
-      const provider = event.metadata.provider || 'unknown';
-      
-      if (!summary.providers[provider]) {
-        summary.providers[provider] = { count: 0, cachedCount: 0, estimatedCost: 0 };
-      }
-      
-      summary.providers[provider].count += 1;
-      
-      if (event.metadata.fromCache) {
-        summary.providers[provider].cachedCount += 1;
-      }
-      
-      if (event.metadata.cost && !event.metadata.fromCache) {
-        summary.providers[provider].estimatedCost += event.metadata.cost;
-      }
-    });
-    
-    return NextResponse.json({ summary });
   } catch (error) {
     console.error('Analytics GET error:', error);
     return NextResponse.json({ error: 'Analytics retrieval error' }, { status: 500 });
   }
 }
-
-// Config for Edge runtime
-export const runtime = 'edge';

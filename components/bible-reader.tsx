@@ -7,10 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Search, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { getBibleVerse, BibleVerse as OriginalBibleVerse } from '@/utils/bible';
+import { BibleVerse as OriginalBibleVerse } from '@/utils/bible';
+import { bibleService } from '@/utils/bible-service';
 import { VerseExplainer } from './verse-explainer';
 
-const TRANSLATIONS = [
+// Translation options will be loaded from API
+const DEFAULT_TRANSLATIONS = [
   { id: 'NIV', name: 'New International Version' },
   { id: 'ESV', name: 'English Standard Version' },
   { id: 'KJV', name: 'King James Version' },
@@ -31,24 +33,37 @@ export function BibleReader() {
   const [currentBook, setCurrentBook] = useState<string>('');
   const [showExplainer, setShowExplainer] = useState<boolean>(false);
   const [selectedVerse, setSelectedVerse] = useState<BibleVerse | null>(null);
+  const [translations, setTranslations] = useState<{id: string, name: string}[]>(DEFAULT_TRANSLATIONS);
 
-  // Load the initial verse on component mount
+  // Load the initial verse and available translations on component mount
   useEffect(() => {
     fetchBiblePassage(passageRef);
+    loadTranslations();
   }, []);
+  
+  // Load available translations from the API
+  const loadTranslations = async () => {
+    try {
+      const translationData = await bibleService.getTranslations();
+      if (translationData && translationData.length > 0) {
+        setTranslations(translationData.map(t => ({ id: t.id, name: t.name })));
+      }
+    } catch (err) {
+      console.error('Error loading translations:', err);
+      // Fall back to default translations if API fails
+    }
+  };
 
   const fetchBiblePassage = async (passageRef: string) => {
     setLoading(true);
     setError(null);
 
     try {
-      // If the reference contains only a book name or a book and chapter, fetch the entire chapter
-      let refToFetch = passageRef;
-      
       // Extract book and chapter info to update navigation state
       const parts = passageRef.split(' ');
       let book = parts[0];
       let chapter = '1';
+      let isVerse = false;
       
       // Handle multi-word book names (e.g., "1 Corinthians")
       if (parts.length > 1 && !parts[1].includes(':')) {
@@ -56,27 +71,50 @@ export function BibleReader() {
         if (parts.length > 2 && parts[2].includes(':')) {
           const chapterVerse = parts[2].split(':');
           chapter = chapterVerse[0];
+          isVerse = true;
         } else if (parts.length > 2) {
           chapter = parts[2];
         }
       } else if (parts.length > 1) {
         const chapterVerse = parts[1].split(':');
         chapter = chapterVerse[0];
+        isVerse = parts[1].includes(':');
       }
       
       setCurrentBook(book);
       setCurrentChapter(chapter);
-
-      const result = await getBibleVerse(refToFetch, translation);
-      if (result) {
-        // If we get a single verse, convert it to an array for consistent state
-        if (!Array.isArray(result)) {
-          setVerses([result]);
+      
+      let result;
+      
+      // Check if we're looking up a specific verse or just a chapter
+      if (isVerse) {
+        // If it's a specific verse or passage, use getVerse or getPassage
+        if (passageRef.includes('-') || passageRef.includes(',')) {
+          // Multiple verses (passage)
+          const passage = await bibleService.getPassage(passageRef, translation);
+          if (passage && passage.verses) {
+            setVerses(passage.verses);
+          } else {
+            throw new Error('No verses found');
+          }
         } else {
-          setVerses(result);
+          // Single verse
+          result = await bibleService.getVerse(passageRef, translation);
+          setVerses([result]);
         }
       } else {
-        throw new Error('Unable to find the requested passage');
+        // If it's a chapter reference, use getChapter
+        const chapterNum = parseInt(chapter);
+        if (!isNaN(chapterNum)) {
+          const chapterData = await bibleService.getChapter(book, chapterNum, translation);
+          if (chapterData && chapterData.verses) {
+            setVerses(chapterData.verses);
+          } else {
+            throw new Error('No verses found in chapter');
+          }
+        } else {
+          throw new Error('Invalid chapter number');
+        }
       }
     } catch (err) {
       console.error('Error fetching Bible passage:', err);
@@ -135,7 +173,7 @@ export function BibleReader() {
                 <SelectValue placeholder="NIV" />
               </SelectTrigger>
               <SelectContent>
-                {TRANSLATIONS.map((t) => (
+                {translations.map((t) => (
                   <SelectItem key={t.id} value={t.id}>
                     {t.id}
                   </SelectItem>

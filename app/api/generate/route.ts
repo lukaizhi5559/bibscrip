@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { ENDPOINTS } from '@/lib/api-config';
+import axios from 'axios';
 
 // Set Edge runtime for better performance in serverless environments
 export const runtime = 'edge';
@@ -22,64 +24,39 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get the backend URL from environment variables or use default
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
-    const endpoint = `${backendUrl}/api/generate`;
-    
-    // Create a fetch request with a timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+    // Define any additional parameters from the request body
+    const { model = 'default', temperature = 0.7, maxTokens = 1000 } = body;
     
     try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ prompt }),
-        signal: controller.signal
+      // Use axios with the centralized endpoint configuration
+      const response = await axios.post(ENDPOINTS.GENERATE.TEXT, {
+        prompt,
+        model,
+        temperature,
+        maxTokens
+      }, {
+        timeout: 30000 // 30 second timeout
       });
       
-      // Always clear the timeout
-      clearTimeout(timeoutId);
-      
-      // Handle error responses from the backend
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error(`Backend error: ${response.status}`, errorData);
-        
-        return NextResponse.json(
-          { 
-            error: 'Backend service error',
-            status: response.status,
-            details: process.env.NODE_ENV === 'development' ? errorData : undefined
-          },
-          { status: response.status }
-        );
-      }
-      
-      // Parse and return the successful response
-      const data = await response.json();
+      // Return the response data directly
+      const data = response.data;
       
       return NextResponse.json({
         ...data,
         latencyMs: Math.round(performance.now() - requestStartTime)
       });
-    } catch (fetchError) {
-      // Clear the timeout if we're handling an error
-      clearTimeout(timeoutId);
-      
-      // Handle fetch errors (network issues, timeouts, etc.)
-      console.error('Fetch error:', fetchError);
+    } catch (error) {
+      // Handle axios errors (network issues, timeouts, etc.)
+      console.error('Backend API error:', error);
       
       // Determine if this was a timeout
-      const isTimeout = fetchError instanceof Error && 
-        fetchError.name === 'AbortError';
+      const isTimeout = error instanceof Error && 
+        error.message.includes('timeout');
       
       return NextResponse.json(
         { 
           error: isTimeout ? 'Request timed out' : 'Network error connecting to backend',
-          details: process.env.NODE_ENV === 'development' ? String(fetchError) : undefined
+          details: process.env.NODE_ENV === 'development' ? String(error) : undefined
         },
         { status: isTimeout ? 504 : 502 }
       );

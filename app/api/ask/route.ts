@@ -1,14 +1,13 @@
-// BibScrip API - Enhanced AI Ask Endpoint
-// Implements caching, advanced rate limiting, and analytics
+// BibScrip API - Proxy to Backend Ask Service
+// Provides simplified rate limiting and analytics
 import { NextResponse } from 'next/server';
-import { getAIResponse } from '@/utils/ai';
-import { getBibleVerse, BibleVerse } from '@/utils/bible';
+import { ENDPOINTS } from '@/lib/api-config';
+import axios from 'axios';
+import { bibleService } from '@/utils/bible-service';
 import { extractVerseReferences } from '@/utils/verse-parser';
-import { makeRequest, AIErrorResponse } from '@/utils/request-manager';
-import { cacheManager, createCacheKey } from '@/utils/cache-manager';
-import { analytics } from '@/utils/analytics';
+import type { BibleVerse } from '@/utils/bible';
 
-// Common Bible translation abbreviations
+// Common Bible translation abbreviations for detection in questions
 const TRANSLATIONS = ['NIV', 'ESV', 'KJV', 'NKJV', 'NLT', 'NASB', 'NRSV', 'MSG', 'AMP', 'CSB', 'WEB'];
 
 /**
@@ -36,19 +35,14 @@ function extractTranslationPreference(question: string): string | undefined {
   return undefined;
 }
 
-// Enhanced rate limiting with IP-based request tracking
-// This is in addition to the per-provider rate limiting in request-manager.ts
+// Simple rate limiting with IP-based tracking
 const IP_RATE_LIMIT = {
   windowMs: 60000, // 1 minute
   maxRequests: 15, // 15 requests per minute per IP
-  maxBurst: 5 // Allow up to 5 additional requests in burst mode
 };
 
 // Track per-IP request timestamps
 const ipRequestTimestamps = new Map<string, number[]>();
-
-// Keep a map of active requests per IP to prevent duplicate submissions
-const activeRequests = new Map<string, Set<string>>();
 
 /**
  * Check if an IP is rate limited
@@ -75,8 +69,8 @@ function checkRateLimit(ip: string | null): {
   const resetMs = Math.max(0, (oldestTimestamp + IP_RATE_LIMIT.windowMs) - now);
   
   // Check if over the limit
-  const isLimited = recentTimestamps.length >= (IP_RATE_LIMIT.maxRequests + IP_RATE_LIMIT.maxBurst);
-  const remaining = Math.max(0, (IP_RATE_LIMIT.maxRequests + IP_RATE_LIMIT.maxBurst) - recentTimestamps.length);
+  const isLimited = recentTimestamps.length >= IP_RATE_LIMIT.maxRequests;
+  const remaining = Math.max(0, IP_RATE_LIMIT.maxRequests - recentTimestamps.length);
   
   // Record this request timestamp if not limited
   if (!isLimited) {
@@ -91,290 +85,220 @@ function checkRateLimit(ip: string | null): {
   };
 }
 
-/**
- * Check if a request is a duplicate from the same IP
- * @param ip The IP address
- * @param cacheKey The normalized request cache key
- * @returns Whether this is a duplicate in-flight request
- */
-function isDuplicateRequest(ip: string | null, cacheKey: string): boolean {
-  if (!ip) return false;
-  
-  const ipActiveRequests = activeRequests.get(ip) || new Set<string>();
-  
-  if (ipActiveRequests.has(cacheKey)) {
-    return true;
-  }
-  
-  // Register this request
-  ipActiveRequests.add(cacheKey);
-  activeRequests.set(ip, ipActiveRequests);
-  
-  return false;
-}
-
-/**
- * Mark a request as completed to allow future duplicate requests
- */
-function completeRequest(ip: string | null, cacheKey: string): void {
-  if (!ip) return;
-  
-  const ipActiveRequests = activeRequests.get(ip);
-  if (ipActiveRequests) {
-    ipActiveRequests.delete(cacheKey);
-    if (ipActiveRequests.size === 0) {
-      activeRequests.delete(ip);
-    } else {
-      activeRequests.set(ip, ipActiveRequests);
-    }
-  }
-}
-
 // Config for Edge runtime for optimal performance
 export const runtime = 'edge';
 
 /**
- * Enhanced POST handler with caching, advanced rate limiting, and analytics
+ * POST handler that proxies to backend Ask API
  */
 export async function POST(request: Request) {
   const requestStartTime = performance.now();
-  const ip = request.headers.get('x-forwarded-for') || request.headers.get('remote-addr');
-  let cacheKey = '';
   
   try {
-    // Check IP rate limits first
-    const rateLimitStatus = checkRateLimit(ip);
-    if (rateLimitStatus.limited) {
-      // Track rate limit event
-      analytics.trackRateLimit({
-        provider: 'ip',
-        limitType: 'requests_per_minute',
-        currentCount: IP_RATE_LIMIT.maxRequests + IP_RATE_LIMIT.maxBurst,
-        limit: IP_RATE_LIMIT.maxRequests
-      });
-      
-      return NextResponse.json({ 
-        error: 'Too many requests. Please try again later.',
-        resetIn: Math.ceil(rateLimitStatus.resetMs / 1000)
-      }, { 
+    // Parse the request body
+    let body;
+    try {
+      body = await request.json();
+      console.log('API Route /api/ask received request body:', JSON.stringify(body, null, 2));
+    } catch (parseError) {
+      console.error('Error parsing request body:', parseError);
+      return NextResponse.json({ error: "Invalid JSON in request body" }, { status: 400 });
+    }
+    
+    // Extract question and options with more validation
+    const question = body?.question;
+    const options = body?.options || {};
+    
+    console.log('Extracted question:', question);
+    console.log('Extracted options:', options);
+    
+    // Get client IP for rate limiting
+    const ipHeader = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip');
+    const ip = ipHeader ? ipHeader.split(',')[0].trim() : null;
+    
+    if (!question || question.trim() === "") {
+      return NextResponse.json({ error: "Question cannot be empty" }, { status: 400 });
+    }
+    
+    // Normalize the question
+    const normalizedQuestion = question.trim();
+    
+    // Apply basic rate limiting
+    const rateLimit = checkRateLimit(ip);
+    if (rateLimit.limited) {
+      return NextResponse.json({
+        error: "Rate limit exceeded. Please try again later.",
+        retryAfterMs: rateLimit.resetMs
+      }, {
         status: 429,
         headers: {
-          'Retry-After': String(Math.ceil(rateLimitStatus.resetMs / 1000)),
-          'X-RateLimit-Limit': String(IP_RATE_LIMIT.maxRequests),
-          'X-RateLimit-Remaining': String(rateLimitStatus.remaining),
-          'X-RateLimit-Reset': String(Math.ceil(Date.now() + rateLimitStatus.resetMs))
+          'Retry-After': Math.ceil(rateLimit.resetMs / 1000).toString(),
+          'X-RateLimit-Remaining': rateLimit.remaining.toString(),
+          'X-RateLimit-Reset': Math.ceil(rateLimit.resetMs / 1000).toString()
         }
       });
     }
-
-    const body = await request.json();
-    const { question, useFallback, timeoutEnabled, forceRefresh, testMode } = body;
-
-    if (!question || typeof question !== 'string') {
-      return NextResponse.json({ error: 'Question is required and must be a string.' }, { status: 400 });
-    }
-
-    // Extract translation preference from the question
-    const preferredTranslation = extractTranslationPreference(question);
     
-    // Create a cache key for this question + translation
-    cacheKey = createCacheKey(question, { translation: preferredTranslation });
+    // Extract preferred translation if mentioned in the question
+    const preferredTranslation = extractTranslationPreference(normalizedQuestion) || 'NIV';
     
-    // Check for duplicate in-flight requests
-    if (isDuplicateRequest(ip, cacheKey)) {
-      return NextResponse.json({ 
-        error: 'A similar request is already in progress. Please wait.',
-        status: 'duplicate'
-      }, { status: 429 });
-    }
-    
+    // Forward the request to the backend
+    let backendResponse;
     try {
-      // Test mode for development - return fake data to avoid API costs
-      if (testMode) {
-        const testResponse = {
-          ai: `[TEST MODE] This is a simulated AI response to your question: "${question}"`,
-          verses: [{
-            ref: 'John 3:16',
-            text: 'For God so loved the world that he gave his one and only Son, that whoever believes in him shall not perish but have eternal life.',
-            translation: preferredTranslation || 'WEB',
-            link: 'https://www.biblegateway.com/passage/?search=John+3%3A16&version=NIV',
-            source: 'test'
-          }],
-          provider: 'test',
-          fromCache: false,
-          latencyMs: 123
-        };
-        
-        // Simulate a delay
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Complete the request to allow duplicates again
-        completeRequest(ip, cacheKey);
-        
-        // Track this as a test request in analytics
-        analytics.trackAIRequest({
-          provider: 'test',
-          fromCache: false,
-          latencyMs: 500,
-          status: 'success',
-          query: question
-        });
-        
-        return NextResponse.json(testResponse);
-      }
-      
-      // Setup provider order based on user preference
-      // Following the user's preference: OpenAI → Mistral → Claude → Gemini
-      let providers: Array<'openai' | 'mistral' | 'claude' | 'gemini'> = ['openai', 'mistral', 'claude', 'gemini'];
-      
-      // If fallback is requested, start with Mistral
-      if (useFallback) {
-        providers = ['mistral', 'claude', 'gemini', 'openai'];
-      }
-      
-      // Setup timeout for API requests
-      const timeout = timeoutEnabled ? 18000 : 30000; // 18 or 30 seconds
-      
-      // Make the AI request with our enhanced request manager
-      const aiResult = await makeRequest(
-        // This is the request function that will be called with the provider
-        async (provider, signal) => {
-          return await getAIResponse(question, { 
-            startProvider: provider as any, 
-            timeoutMs: timeout,
-            signal
-          });
-        },
-        // The original query
-        question,
-        // Request options
-        {
-          providers,
-          timeout,
-          cacheKey,
-          forceRefresh,
-          translation: preferredTranslation,
-          caching: {
-            enabled: true,
-            ttl: 30 * 24 * 60 * 60 * 1000 // 30 days
-          },
-          retry: {
-            maxAttempts: 2,
-            initialDelayMs: 500,
-            backoffFactor: 1.5,
-            maxDelayMs: 5000
-          }
+      console.log('Sending request to backend:', ENDPOINTS.ASK);
+      console.log('Request payload:', JSON.stringify({
+        query: normalizedQuestion,
+        options: {
+          ...options,
+          preferredTranslation
         }
-      );
+      }, null, 2));
       
-      // Extract verse references from both question and response
-      const questionVerses = extractVerseReferences(question);
+      backendResponse = await axios.post(ENDPOINTS.ASK, {
+        question: normalizedQuestion, // Backend expects 'question' not 'query'
+        options: {
+          ...options,
+          preferredTranslation
+        }
+      }, {
+        timeout: 160000, // 120 second timeout for AI processing
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
       
-      // Check if the AI response is a string or an error object
-      let aiResponseText: string;
-      if (typeof aiResult.data === 'string') {
-        aiResponseText = aiResult.data;
-      } else if (typeof aiResult.data === 'object' && aiResult.data && 'error' in aiResult.data) {
-        const errorResponse = aiResult.data as AIErrorResponse;
-        aiResponseText = errorResponse.error;
+      console.log('Backend response::', backendResponse);
+      console.log('Backend response status:', backendResponse.status);
+      console.log('Backend response headers:', backendResponse.headers);
+    } catch (axiosError: any) {
+      // Handle specific axios errors
+      if (axiosError.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        console.error(`Backend API error: ${axiosError.response.status}`, axiosError.response.data);
+        console.error('Full error details:', axiosError.message);
+        
+        // Log additional headers for debugging
+        console.error('Response headers:', axiosError.response.headers);
+        
+        return NextResponse.json({ 
+          error: axiosError.response.data?.error || 'Error from AI service',
+          details: process.env.NODE_ENV === 'development' ? axiosError.response.data : undefined,
+          debugInfo: process.env.NODE_ENV === 'development' ? {
+            url: ENDPOINTS.ASK,
+            message: axiosError.message,
+            code: axiosError.code
+          } : undefined
+        }, { status: axiosError.response.status || 500 });
+      } else if (axiosError.request) {
+        // The request was made but no response was received
+        console.error('Backend API timeout or no response:', axiosError.message);
+        return NextResponse.json({ 
+          error: 'AI service unavailable. Please try again later.',
+          details: process.env.NODE_ENV === 'development' ? axiosError.message : undefined
+        }, { status: 503 });
       } else {
-        aiResponseText = 'Error processing your request';
+        // Something happened in setting up the request
+        console.error('Error setting up backend API request:', axiosError.message);
+        throw axiosError; // Let the outer catch handle this
       }
-      
-      const aiResponseVerses = extractVerseReferences(aiResponseText);
-      const verseRefsToFetch = Array.from(new Set([...questionVerses, ...aiResponseVerses]));
-      
-      // Fetch Bible verses with caching
-      const fetchedVerses: BibleVerse[] = [];
-      if (verseRefsToFetch.length > 0) {
-        // Create individual promises for each verse
-        const versePromises = verseRefsToFetch.map(async (ref) => {
-          // Create a verse-specific cache key
-          const verseCacheKey = `verse:${ref}:${preferredTranslation || 'default'}`;
-          
-          // Check cache first
-          const cachedVerse = await cacheManager.get<BibleVerse>(verseCacheKey);
-          if (cachedVerse && !forceRefresh) {
-            analytics.trackCacheOperation({
-              operation: 'hit',
-              key: verseCacheKey
-            });
-            return cachedVerse.data;
-          }
-          
-          // Cache miss, fetch from API
-          analytics.trackCacheOperation({
-            operation: 'miss',
-            key: verseCacheKey
-          });
-          
-          const verse = await getBibleVerse(ref, preferredTranslation);
-          
-          // Cache the result if found
-          if (verse) {
-            await cacheManager.set(verseCacheKey, verse, {
-              ttl: 365 * 24 * 60 * 60 * 1000 // Bible verses can be cached for a year
-            });
-          }
-          
-          return verse;
-        });
-        
-        // Execute all verse fetches in parallel
-        const results = await Promise.allSettled(versePromises);
-        
-        results.forEach(result => {
-          if (result.status === 'fulfilled' && result.value) {
-            fetchedVerses.push(result.value);
-          }
-        });
-      }
-      
-      // Track AI request in analytics
-      analytics.trackAIRequest({
-        provider: aiResult.provider || 'unknown',
-        fromCache: aiResult.fromCache,
-        tokenUsage: aiResult.tokenUsage,
-        latencyMs: aiResult.latencyMs,
-        status: 'success',
-        query: question,
-        cacheKey,
-        cacheAge: aiResult.cacheAge
-      });
-      
-      // Complete the request to allow duplicates again
-      completeRequest(ip, cacheKey);
-      
-      // Return the complete response
-      return NextResponse.json({
-        ai: aiResponseText,
-        verses: fetchedVerses,
-        provider: aiResult.provider,
-        fromCache: aiResult.fromCache,
-        latencyMs: Math.round(performance.now() - requestStartTime)
-      });
-    } finally {
-      // Ensure we clean up the request tracking even if there's an error
-      completeRequest(ip, cacheKey);
     }
+    
+    // Get data from the backend response
+    console.log('Backend response data structure:', JSON.stringify(backendResponse.data, null, 2));
+    
+    // Handle different response structures
+    let aiResponseText = '';
+    if (typeof backendResponse.data === 'string') {
+      // If the response is a plain string
+      aiResponseText = backendResponse.data;
+    } else if (backendResponse.data.data && typeof backendResponse.data.data === 'string') {
+      // If the response is structured with a data field containing the answer
+      aiResponseText = backendResponse.data.data;
+    } else if (backendResponse.data.ai && typeof backendResponse.data.ai === 'string') {
+      // If the response already has an ai field
+      aiResponseText = backendResponse.data.ai;
+    } else {
+      console.error('Unexpected response format:', backendResponse.data);
+      aiResponseText = 'Error: Unable to process AI response. Please try again.';
+    }
+    
+    // Extract verse references or use provided ones
+    const questionVerses = backendResponse.data.sources || [];
+    const aiResponseVerses = backendResponse.data.verses || extractVerseReferences(aiResponseText);
+    
+    // Combine both sets of verses without duplicates
+    const verseRefsToFetch = Array.from(new Set([...questionVerses, ...aiResponseVerses]));
+    
+    // Fetch Bible verses using the Bible service
+    const fetchedVerses: BibleVerse[] = [];
+    if (verseRefsToFetch.length > 0) {
+      const versePromises = verseRefsToFetch.map(async (ref) => {
+        try {
+          // Use the Bible service to fetch the verse
+          return await bibleService.getVerse(ref, preferredTranslation);
+        } catch (err) {
+          console.error(`Error fetching verse ${ref}:`, err);
+          return null;
+        }
+      });
+      
+      // Execute all verse fetches in parallel
+      const results = await Promise.allSettled(versePromises);
+      
+      results.forEach(result => {
+        if (result.status === 'fulfilled' && result.value) {
+          fetchedVerses.push(result.value);
+        }
+      });
+    }
+    
+    // Return the response with any fetched verses
+    const responseObj = {
+      ai: aiResponseText,
+      verses: fetchedVerses,
+      sources: backendResponse.data.sources || [],
+      latencyMs: Math.round(performance.now() - requestStartTime),
+      fromCache: backendResponse.data.fromCache || false,
+      provider: backendResponse.data.provider || 'default'
+    };
+    
+    console.log('Sending response to frontend:', {
+      hasAiText: !!responseObj.ai, 
+      textLength: responseObj.ai.length,
+      versesCount: responseObj.verses.length
+    });
+    
+    return NextResponse.json(responseObj);
+    
   } catch (error) {
     // Log the error
     console.error('Error in /api/ask handler:', error);
     
-    // Track the error in analytics
-    analytics.trackAIRequest({
-      provider: 'unknown',
-      fromCache: false,
-      latencyMs: performance.now() - requestStartTime,
-      status: 'error',
-      errorType: error instanceof Error ? error.name : 'Unknown',
-      query: cacheKey
-    });
+    // Determine if this is an axios error with more details
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        // Timeout error
+        return NextResponse.json({ 
+          error: 'Request to AI service timed out. Please try again later.',
+          details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        }, { status: 504 });
+      } else if (error.code === 'ERR_NETWORK') {
+        // Network error
+        return NextResponse.json({ 
+          error: 'Unable to connect to AI service. Please ensure backend is running.',
+          details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        }, { status: 503 });
+      } else if (error.code === 'ERR_BAD_REQUEST') {
+        // Bad request error
+        return NextResponse.json({ 
+          error: 'AI service rejected the request. Please check your query format.',
+          details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        }, { status: 400 });
+      }
+    }
     
-    // Clean up request tracking
-    completeRequest(ip, cacheKey);
-    
-    // Return an error response
+    // Return a generic error response for other types of errors
     return NextResponse.json({ 
       error: 'An error occurred while processing your request. Please try again later.',
       details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined

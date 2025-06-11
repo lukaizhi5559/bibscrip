@@ -26,7 +26,8 @@ class VectorService {
    */
   async storeDocument(document: VectorDocument, namespace = 'bible-verses'): Promise<string> {
     try {
-      const response = await axios.post(ENDPOINTS.VECTOR.STORE, {
+      // Use the local API proxy route instead of directly calling the backend
+      const response = await axios.post('/api/vector/store', {
         text: document.text,
         metadata: document.metadata,
         namespace
@@ -47,7 +48,8 @@ class VectorService {
    */
   async searchSimilar(query: string, namespace = 'bible-verses', topK = 5): Promise<SearchResult[]> {
     try {
-      const response = await axios.post(ENDPOINTS.VECTOR.SEARCH, {
+      // Use the local API proxy route instead of directly calling the backend
+      const response = await axios.post('/api/vector/search', {
         query,
         namespace,
         topK,
@@ -65,8 +67,15 @@ class VectorService {
    * @returns Status object with availability and mode
    */
   async checkStatus(): Promise<{available: boolean, mode: string}> {
-    const response = await axios.get(ENDPOINTS.VECTOR.STATUS);
-    return response.data.data;
+    try {
+      // Use the local API proxy route instead of directly calling the backend
+      const response = await axios.get('/api/vector/status');
+      return response.data.data;
+    } catch (error) {
+      console.error('Failed to check vector database status:', error);
+      // Return a fallback status in case of error
+      return { available: false, mode: 'error' };
+    }
   }
 
   /**
@@ -77,7 +86,8 @@ class VectorService {
    */
   async storeBatch(documents: VectorDocument[], namespace = 'bible-verses'): Promise<string[]> {
     try {
-      const response = await axios.post(ENDPOINTS.VECTOR.BATCH, {
+      // Use the local API proxy route instead of directly calling the backend
+      const response = await axios.post('/api/vector/batch', {
         documents: documents.map(doc => ({
           text: doc.text,
           metadata: doc.metadata

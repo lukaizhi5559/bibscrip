@@ -51,7 +51,8 @@ export function VerseExplainer({ verse, onClose }: VerseExplainerProps) {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to get verse explanation');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to get verse explanation');
       }
 
       const data = await response.json();
@@ -66,15 +67,35 @@ export function VerseExplainer({ verse, onClose }: VerseExplainerProps) {
       console.error('Error fetching verse explanation:', err);
       setError('Could not load the explanation. Please try again later.');
       
-      // For development/demo purposes, set mock data if API fails
-      setExplanation({
-        theological: `This verse speaks to the core theological concept of God's love and the sacrifice of Jesus Christ. It encapsulates the gospel message—that God loved humanity so deeply that He gave His only Son as a sacrifice, so that through faith in Him, people can receive eternal life rather than facing judgment for their sins.`,
-        historical: `Written by the apostle John around 85-95 AD, this verse appears in a conversation between Jesus and Nicodemus, a Pharisee and member of the Jewish ruling council. In the historical context, the concept of a loving God offering salvation to all people, not just the Jewish nation, was revolutionary. The phrase "whoever believes" would have been particularly significant in a society that emphasized religious ritual and ethnic identity as paths to God.`,
-        application: `Today, this verse reminds us that God's love is unconditional and available to everyone. It challenges us to respond to this love with faith and to extend similar love to others. When facing difficult decisions or relationships, we can reflect on how God's sacrificial love should guide our own actions. This verse also comforts us with the promise of eternal life, giving us hope beyond current circumstances.`,
-      });
+      // Only in development, provide a fallback explanation
+      if (process.env.NODE_ENV === 'development') {
+        const fallbackExplanation = getFallbackExplanation(verse.ref);
+        setExplanation(fallbackExplanation);
+      }
     } finally {
       setLoading(false);
     }
+  };
+  
+  // Provides a fallback explanation for common verses during development
+  const getFallbackExplanation = (reference: string): VerseExplanation => {
+    const normalizedRef = reference.toLowerCase().replace(/\s+/g, '');
+    
+    // Handle the most common verses
+    if (normalizedRef.includes('john3:16')) {
+      return {
+        theological: `This verse speaks to the core theological concept of God's love and the sacrifice of Jesus Christ. It encapsulates the gospel message—that God loved humanity so deeply that He gave His only Son as a sacrifice, so that through faith in Him, people can receive eternal life rather than facing judgment for their sins.`,
+        historical: `Written by the apostle John around 85-95 AD, this verse appears in a conversation between Jesus and Nicodemus, a Pharisee and member of the Jewish ruling council. In the historical context, the concept of a loving God offering salvation to all people, not just the Jewish nation, was revolutionary. The phrase "whoever believes" would have been particularly significant in a society that emphasized religious ritual and ethnic identity as paths to God.`,
+        application: `Today, this verse reminds us that God's love is unconditional and available to everyone. It challenges us to respond to this love with faith and to extend similar love to others. When facing difficult decisions or relationships, we can reflect on how God's sacrificial love should guide our own actions. This verse also comforts us with the promise of eternal life, giving us hope beyond current circumstances.`,
+      };
+    }
+    
+    // Default fallback for any verse
+    return {
+      theological: 'Theological meaning will display here when connected to the backend API.',
+      historical: 'Historical context will display here when connected to the backend API.',
+      application: 'Modern application insights will display here when connected to the backend API.',
+    };
   };
 
   return (
