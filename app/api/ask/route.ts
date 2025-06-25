@@ -140,7 +140,7 @@ export async function POST(request: Request) {
     }
     
     // Extract preferred translation if mentioned in the question
-    const preferredTranslation = extractTranslationPreference(normalizedQuestion) || 'NIV';
+    const preferredTranslation = extractTranslationPreference(normalizedQuestion) || 'ESV';
     
     // Forward the request to the backend
     let backendResponse;

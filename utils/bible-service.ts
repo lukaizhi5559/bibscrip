@@ -22,14 +22,16 @@ export interface BibleChapter {
   book: string;
   chapter: number;
   translation: string;
-  verses: BibleVerse[];
+  verses?: BibleVerse[];
+  text?: string;      // Full chapter text from API
+  reference?: string; // Full reference like "John 3"
 }
 
 // Interface for Bible passage (multiple verses)
 export interface BiblePassage {
-  ref: string;
-  translation: string;
   verses: BibleVerse[];
+  translation?: string;
+  reference?: string; // Reference like John 3:16-18
 }
 
 /**
@@ -48,7 +50,26 @@ class BibleService {
         params: { reference, translation }
       });
       
-      return response.data.data;
+      console.log('Bible service getVerse response:', response.data);
+      
+      // Handle different possible API response structures
+      if (response.data && response.data.data) {
+        // If the response is nested in a data property
+        return response.data.data;
+      } else if (response.data && response.data.text) {
+        // If the response is directly in the response.data
+        return {
+          ref: response.data.reference || reference,
+          text: response.data.text || '',
+          translation: response.data.translation || translation,
+          link: '',
+          source: 'api'
+        };
+      } else {
+        // No identifiable verse data
+        console.error(`Invalid verse data format for: ${reference}`);
+        throw new Error('Invalid verse data format');
+      }
     } catch (error) {
       console.error(`Error fetching Bible verse: ${reference}`, error);
       throw error;
@@ -67,7 +88,29 @@ class BibleService {
         params: { reference, translation }
       });
       
-      return response.data.data;
+      console.log('Bible service getPassage response:', response.data);
+      
+      // Handle different possible API response structures
+      if (response.data && response.data.data) {
+        // If the response is nested in a data property
+        return response.data.data;
+      } else if (response.data && Array.isArray(response.data.verses)) {
+        // If the verses array is directly in the response.data
+        return response.data;
+      } else if (response.data && typeof response.data === 'object') {
+        // If we got some kind of object response but not in expected format
+        console.log('Unexpected passage format, attempting to normalize');
+        // Try to construct a passage object from what we received
+        return {
+          reference: response.data.reference || reference,
+          translation: response.data.translation || translation,
+          verses: Array.isArray(response.data) ? response.data : []
+        };
+      } else {
+        // No identifiable passage data
+        console.error(`Invalid passage data format for: ${reference}`);
+        throw new Error('Invalid passage data format');
+      }
     } catch (error) {
       console.error(`Error fetching Bible passage: ${reference}`, error);
       throw error;
@@ -75,8 +118,8 @@ class BibleService {
   }
 
   /**
-   * Fetch an entire Bible chapter
-   * @param book The book name (e.g. "John")
+   * Fetch a chapter from the Bible
+   * @param book The book name
    * @param chapter The chapter number
    * @param translation The translation abbreviation
    */
@@ -87,7 +130,52 @@ class BibleService {
         params: { book, chapter, translation }
       });
       
-      return response.data.data;
+      console.log('Bible service getChapter response:', response.data);
+      
+      // Handle different possible API response structures
+      if (response.data && response.data.data) {
+        // If the response is nested in a data property
+        return response.data.data;
+      } 
+      // Direct text response format (common from chapter endpoint)
+      else if (response.data && typeof response.data.text === 'string') {
+        // Return the chapter with the full text content
+        return {
+          book: response.data.book || book,
+          chapter: response.data.chapter || chapter,
+          translation: response.data.translation || translation,
+          reference: response.data.reference || `${book} ${chapter}`,
+          text: response.data.text
+        };
+      }
+      // Array of verses format
+      else if (response.data && Array.isArray(response.data.verses)) {
+        // If the verses array is directly in the response.data
+        return {
+          book,
+          chapter,
+          verses: response.data.verses,
+          translation: response.data.translation || translation,
+          reference: response.data.reference || `${book} ${chapter}`
+        };
+      } 
+      // Generic object response - try our best to normalize
+      else if (response.data && typeof response.data === 'object') {
+        console.log('Unexpected chapter format, attempting to normalize');
+        // Try to construct a chapter object from what we received
+        return {
+          book: response.data.book || book,
+          chapter: response.data.chapter || chapter,
+          translation: response.data.translation || translation,
+          reference: response.data.reference || `${book} ${chapter}`,
+          text: response.data.text || '',
+          verses: response.data.verses || []
+        };
+      } else {
+        // No identifiable chapter data
+        console.error(`Invalid chapter data format for: ${book} ${chapter}`);
+        throw new Error('Invalid chapter data format');
+      }
     } catch (error) {
       console.error(`Error fetching Bible chapter: ${book} ${chapter}`, error);
       throw error;
